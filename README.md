@@ -28,8 +28,6 @@ Tools version:
 
 ## License
 
-## License
-
 Code: [MIT](LICENSE.md) © 2026 CS5800GroupHACHIMI
 Art assets: © 2026 SaltyfishAlpha，All rights reserved.
 Art assets are not be used without explicit permission from the copyright holder.
