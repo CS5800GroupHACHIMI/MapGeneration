@@ -1,7 +1,5 @@
 # MapGeneration
 
----
-
 **IMPORTANT** 
 
 Tools version:
