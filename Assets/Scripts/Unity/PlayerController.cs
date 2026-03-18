@@ -1,4 +1,5 @@
-﻿using Model;
+﻿using Data;
+using Model;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VContainer.Unity;
@@ -38,6 +39,7 @@ public class PlayerController : ITickable
         int ny = _player.Y + dy;
 
         if (!_grid.InBounds(nx, ny)) return;
+        if (_grid.GetTileType(nx, ny) == TileType.Wall) return;
 
         _player.MoveTo(nx, ny);
         _cooldown = MoveDelay;

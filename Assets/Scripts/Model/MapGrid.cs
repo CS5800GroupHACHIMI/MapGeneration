@@ -9,7 +9,8 @@ namespace Model
         public int Width  { get; }
         public int Height { get; }
 
-        private readonly Tile[,] _tiles;
+        private readonly Tile[,]     _tiles;
+        private readonly TileType[,] _types;
         private readonly TileRegistry _registry;
 
         public event Action<int, int, Tile> OnTileChanged;
@@ -18,14 +19,18 @@ namespace Model
         {
             Width  = config.width;
             Height = config.height;
-            _tiles = new Tile[Width, Height];
+            _tiles    = new Tile[Width, Height];
+            _types    = new TileType[Width, Height];
             _registry = registry;
         }
 
         public Tile Get(int x, int y) => _tiles[x, y];
 
+        public TileType GetTileType(int x, int y) => _types[x, y];
+
         public void Set(int x, int y, TileType type)
         {
+            _types[x, y] = type;
             _tiles[x, y] = _registry.Get(type);
             OnTileChanged?.Invoke(x, y, _tiles[x, y]);
         }

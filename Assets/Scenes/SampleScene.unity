@@ -551,6 +551,7 @@ MonoBehaviour:
   tilemap: {fileID: 1552436491}
   boardView: {fileID: 1552436489}
   runner: {fileID: 1463471305}
+  generatorType: 1
   playerView: {fileID: 5462400168340658738}
 --- !u!4 &812984698
 Transform:

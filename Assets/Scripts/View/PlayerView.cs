@@ -33,10 +33,18 @@ public class PlayerView : MonoBehaviour
     
     private void OnMoved(int x, int y)
     {
-        _fromPosition = transform.position;
+        // If still animating, snap to the previous tile's exact position
+        // so the next animation always starts from a clean grid-aligned point
+        _fromPosition = _isMoving ? _toPosition : transform.position;
         _toPosition   = GridToWorld(x, y);
         _moveTime     = 0f;
         _isMoving     = true;
+
+        float dx = _toPosition.x - _fromPosition.x;
+        if (dx > 0.01f)
+            spriteRenderer.flipX = true;
+        else if (dx < -0.01f)
+            spriteRenderer.flipX = false;
     }
 
     private void OnTeleported(int x, int y)

@@ -31,5 +31,7 @@ namespace Generators
         }
 
         public abstract void Generate(MapGrid grid, MapConfig config);
+
+        public virtual Vector2Int GetStartPosition(MapGrid grid) => _startPosition;
     }
 }
