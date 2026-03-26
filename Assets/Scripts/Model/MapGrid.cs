@@ -9,22 +9,22 @@ namespace Model
         public int Width  { get; }
         public int Height { get; }
 
-        private readonly Tile[,]     _tiles;
+        private readonly TileBase[,]     _tiles;
         private readonly TileType[,] _types;
         private readonly TileRegistry _registry;
 
-        public event Action<int, int, Tile> OnTileChanged;
+        public event Action<int, int, TileBase> OnTileChanged;
 
         public MapGrid(MapConfig config, TileRegistry registry)
         {
             Width  = config.width;
             Height = config.height;
-            _tiles    = new Tile[Width, Height];
+            _tiles    = new TileBase[Width, Height];
             _types    = new TileType[Width, Height];
             _registry = registry;
         }
 
-        public Tile Get(int x, int y) => _tiles[x, y];
+        public TileBase Get(int x, int y) => _tiles[x, y];
 
         public TileType GetTileType(int x, int y) => _types[x, y];
 

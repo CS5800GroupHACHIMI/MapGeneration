@@ -296,7 +296,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.211366, y: -2.3251169, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -423,7 +423,7 @@ Transform:
   m_GameObject: {fileID: 590961200}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.211366, y: -2.3251169, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -551,7 +551,7 @@ MonoBehaviour:
   tilemap: {fileID: 1552436491}
   boardView: {fileID: 1552436489}
   runner: {fileID: 1463471305}
-  generatorType: 1
+  generator: {fileID: 11400000, guid: d103864e3f19211499f87215e2a4bcbd, type: 2}
   playerView: {fileID: 5462400168340658738}
 --- !u!4 &812984698
 Transform:
@@ -616,7 +616,7 @@ Transform:
   m_GameObject: {fileID: 1463471304}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.51951, y: 0.5036, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -799,11 +799,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1558911368559294006, guid: aaab7912f42fd2042ad8a93e4d4309bd, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1.211366
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1558911368559294006, guid: aaab7912f42fd2042ad8a93e4d4309bd, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -2.3251169
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1558911368559294006, guid: aaab7912f42fd2042ad8a93e4d4309bd, type: 3}
       propertyPath: m_LocalPosition.z

@@ -16,6 +16,7 @@ namespace Generators
     ///
     /// Recommended MapConfig size: 64x64 or larger.
     /// </summary>
+    [CreateAssetMenu(fileName = "MetroidvaniaGenerator", menuName = "Generators/Metroidvania")]
     public class MetroidvaniaGenerator : MapGeneratorBase
     {
         public override string Name => "Metroidvania";
@@ -28,7 +29,7 @@ namespace Generators
         private static readonly int[] Dx = {  1, -1,  0,  0 };
         private static readonly int[] Dy = {  0,  0,  1, -1 };
 
-        public MetroidvaniaGenerator(TileRegistry registry) : base(registry) { }
+
 
         public override void Generate(MapGrid grid, MapConfig config)
         {

@@ -4,11 +4,12 @@ using UnityEngine;
 
 namespace Generators
 {
+    [CreateAssetMenu(fileName = "SingleRoomGenerator", menuName = "Generators/Single Room")]
     public class SingleRoomGenerator : MapGeneratorBase
     {
         public override string Name => "Single Room";
 
-        public SingleRoomGenerator(TileRegistry registry) : base(registry) { }
+
 
         public override void Generate(MapGrid grid, MapConfig config)
         {

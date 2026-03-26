@@ -7,15 +7,13 @@ using VContainer.Unity;
 
 public class GameLifetimeScope : LifetimeScope
 {
-    public enum GeneratorType { SingleRoom, Metroidvania }
-
     [Header("Map")]
     [SerializeField] private MapConfig          mapConfig;
     [SerializeField] private TileRegistry       tileRegistry;
     [SerializeField] private Tilemap            tilemap;
     [SerializeField] private TilemapBoardView   boardView;
     [SerializeField] private MapGeneratorRunner runner;
-    [SerializeField] private GeneratorType      generatorType = GeneratorType.SingleRoom;
+    [SerializeField] private MapGeneratorBase   generator;
 
     [Header("Player")]
     [SerializeField] private PlayerView         playerView;
@@ -30,10 +28,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.Register<MapGrid>(Lifetime.Singleton);
         builder.Register<Player>(Lifetime.Singleton);
 
-        if (generatorType == GeneratorType.Metroidvania)
-            builder.Register<MetroidvaniaGenerator>(Lifetime.Singleton).AsImplementedInterfaces();
-        else
-            builder.Register<SingleRoomGenerator>(Lifetime.Singleton).AsImplementedInterfaces();
+        builder.RegisterInstance(generator).AsImplementedInterfaces();
 
         builder.RegisterComponent(boardView);
         builder.RegisterComponent(runner);

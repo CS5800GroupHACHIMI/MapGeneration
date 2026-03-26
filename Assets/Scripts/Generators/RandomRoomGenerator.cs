@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Generators
 {
+    [CreateAssetMenu(fileName = "RandomRoomGenerator", menuName = "Generators/Random Room")]
     public class RandomRoomGenerator : MapGeneratorBase
     {
         public override string Name => "Random Room";
@@ -11,7 +12,7 @@ namespace Generators
         // Probability that an interior cell becomes Floor (vs Wall)
         private const float FloorChance = 0.6f;
 
-        public RandomRoomGenerator(TileRegistry registry) : base(registry) { }
+
 
         public override void Generate(MapGrid grid, MapConfig config)
         {

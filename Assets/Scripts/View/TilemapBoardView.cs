@@ -22,7 +22,7 @@ public class TilemapBoardView : MonoBehaviour
         _grid.OnTileChanged += OnTileChanged;
     }
 
-    private void OnTileChanged(int x, int y, Tile data)
+    private void OnTileChanged(int x, int y, TileBase data)
     {
         tileMap.SetTile(new Vector3Int(x, y, 0), data);
     }

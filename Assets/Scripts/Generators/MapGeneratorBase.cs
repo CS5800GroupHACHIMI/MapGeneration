@@ -1,34 +1,31 @@
-﻿using Data;
-using Model;
+﻿using Model;
 using UnityEngine;
 
 namespace Generators
 {
     /// <summary>
     /// Inherit from this class to implement map generation algorithms.
-    /// 
-    /// What we can use：
-    ///   grid     — Use grid.Set(x, y, Tile(TileType.X)) to set the tiles
-    ///   config   — Configs included map size, seed, default tile.
-    /// 
-    /// What we need to do：
-    ///   Config basic information: Name.
-    ///   Implement Generate() function.
-    ///   Use grid.Set() fill the map.
-    ///   Assign variable _startPosition for start point.
+    ///
+    /// What we can use:
+    ///   grid   — Use grid.Set(x, y, TileType.X) to place tiles
+    ///   config — Map size, seed, default tile type
+    ///
+    /// What we need to do:
+    ///   Set Name.
+    ///   Implement Generate().
+    ///   Assign _startPosition for the player spawn point.
+    ///
+    /// To add a new generator:
+    ///   1. Create a class that extends MapGeneratorBase
+    ///   2. Add [CreateAssetMenu] attribute
+    ///   3. Create the asset in the Editor and assign it in GameLifetimeScope
+    ///   — No other files need to change.
     /// </summary>
-    public abstract class MapGeneratorBase : IMapGenerator
+    public abstract class MapGeneratorBase : ScriptableObject, IMapGenerator
     {
-        private readonly TileRegistry _registry;
-
         public abstract string Name { get; }
-        
-        protected Vector2Int _startPosition;
 
-        protected MapGeneratorBase(TileRegistry registry)
-        {
-            _registry = registry;
-        }
+        protected Vector2Int _startPosition;
 
         public abstract void Generate(MapGrid grid, MapConfig config);
 
