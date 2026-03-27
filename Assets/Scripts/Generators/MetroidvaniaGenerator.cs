@@ -29,7 +29,9 @@ namespace Generators
         private static readonly int[] Dx = {  1, -1,  0,  0 };
         private static readonly int[] Dy = {  0,  0,  1, -1 };
 
-
+        private Dictionary<Vector2Int, List<(Vector2Int, int)>> _weightedAdjacencyList;
+        private Dictionary<Vector2Int, int> _coord2VertexId;
+        private int[,] _weightedAdjacencyMatrix;
 
         public override void Generate(MapGrid grid, MapConfig config)
         {
@@ -135,6 +137,80 @@ namespace Generators
                 SetConn(connH, connV, cx, cy, nx, ny, d);
                 extras--;
             }
+
+            _weightedAdjacencyList = new Dictionary<Vector2Int, List<(Vector2Int, int)>>();
+
+            // Loop over array: cx = column (x), cy = row (y)
+            for (int cx = 0; cx < cols; cx++)
+            {
+                for (int cy = 0; cy < rows; cy++)
+                {
+                    if (!hasRoom[cx, cy])
+                        continue;
+
+                    // Flip y so 0 = bottom row in Unity
+                    int y = rows - 1 - cy;
+                    Vector2Int room1 = new Vector2Int(cx, y);
+
+                    if (!_weightedAdjacencyList.ContainsKey(room1))
+                        _weightedAdjacencyList[room1] = new List<(Vector2Int, int)>();
+
+                    // Right neighbor
+                    if (cx + 1 < cols && hasRoom[cx + 1, cy] && connH[cx, cy])
+                    {
+                        Vector2Int room2 = new Vector2Int(cx + 1, y);
+                        if (!_weightedAdjacencyList.ContainsKey(room2))
+                            _weightedAdjacencyList[room2] = new List<(Vector2Int, int)>();
+
+                        _weightedAdjacencyList[room1].Add((room2, 1));
+                        _weightedAdjacencyList[room2].Add((room1, 1));
+                    }
+
+                    // Top neighbor
+                    if (cy + 1 < rows && hasRoom[cx, cy + 1] && connV[cx, cy])
+                    {
+                        int ny = rows - 1 - (cy + 1); // flip y
+                        Vector2Int room3 = new Vector2Int(cx, ny);
+                        if (!_weightedAdjacencyList.ContainsKey(room3))
+                            _weightedAdjacencyList[room3] = new List<(Vector2Int, int)>();
+
+                        _weightedAdjacencyList[room1].Add((room3, 1));
+                        _weightedAdjacencyList[room3].Add((room1, 1));
+                    }
+                }
+            }
+
+            // Build coordinate to vertex mapping
+            _coord2VertexId = new Dictionary<Vector2Int, int>();
+            for (int cx = 0; cx < cols; cx++)
+            {
+                for (int cy = 0; cy < rows; cy++)
+                {
+                    Vector2Int temp = new Vector2Int(cx, rows - 1 - cy); // flip y
+                    if (hasRoom[cx, cy])
+                        _coord2VertexId[temp] = _coord2VertexId.Count; // sequential IDs
+                }
+            }
+
+            // Initialize adjacency matrix
+            int n = _coord2VertexId.Count;
+            _weightedAdjacencyMatrix = new int[n, n]; // automatically filled with 0
+
+            // Fill adjacency matrix from list
+            foreach (var kvp in _weightedAdjacencyList)
+            {
+                Vector2Int room = kvp.Key;
+                int fromId = _coord2VertexId[room];
+
+                foreach (var (neighbor, weight) in kvp.Value)
+                {
+                    if (!_coord2VertexId.ContainsKey(neighbor)) continue;
+
+                    int toId = _coord2VertexId[neighbor];
+                    _weightedAdjacencyMatrix[fromId, toId] = weight;
+                    _weightedAdjacencyMatrix[toId, fromId] = weight; // undirected
+                }
+            }
         }
 
         private static void SetConn(bool[,] connH, bool[,] connV,
@@ -159,6 +235,18 @@ namespace Generators
                 case 3: return y - 1 >= 0                  && connV[x,     y - 1];
                 default: return false;
             }
+        }
+
+        // ─── Return adjacency list and matrix for Prim's, Kruskal's, Dijkstra's, etc. ────
+
+        public Dictionary<Vector2Int, List<(Vector2Int, int)>> ExportWeightedAdjacencyList()
+        {
+            return _weightedAdjacencyList;
+        }
+
+        public (Dictionary<Vector2Int, int>, int[,]) ExportWeightedAdjacencyMatrix()
+        {
+            return (_coord2VertexId, _weightedAdjacencyMatrix);
         }
 
         // ─── Drawing ─────────────────────────────────────────────────────────────
