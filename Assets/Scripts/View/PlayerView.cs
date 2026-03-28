@@ -18,7 +18,11 @@ public class PlayerView : MonoBehaviour
     
     private float   _moveTime;
     private bool    _isMoving;
-    
+
+    // Ready for next move when animation is 90% done, so the next tile starts
+    // before the ease-out fully stops — eliminates the frame-boundary pause.
+    public bool IsAnimating => _isMoving && _moveTime < moveDuration * 0.9f;
+
     [Inject]
     public void Construct(Player model, Tilemap tilemap)
     {
@@ -33,9 +37,7 @@ public class PlayerView : MonoBehaviour
     
     private void OnMoved(int x, int y)
     {
-        // If still animating, snap to the previous tile's exact position
-        // so the next animation always starts from a clean grid-aligned point
-        _fromPosition = _isMoving ? _toPosition : transform.position;
+        _fromPosition = transform.position;
         _toPosition   = GridToWorld(x, y);
         _moveTime     = 0f;
         _isMoving     = true;
@@ -68,7 +70,7 @@ public class PlayerView : MonoBehaviour
         _moveTime += Time.deltaTime;
         float t    = Mathf.Clamp01(_moveTime / moveDuration);
 
-        transform.position = Vector3.Lerp(_fromPosition, _toPosition, Mathf.SmoothStep(0f, 1f, t));
+        transform.position = Vector3.Lerp(_fromPosition, _toPosition, t);
 
         if (t >= 1f)
         {

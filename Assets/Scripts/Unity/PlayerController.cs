@@ -6,25 +6,23 @@ using VContainer.Unity;
 
 public class PlayerController : ITickable
 {
-    private readonly Player _player;
-    private readonly MapGrid _grid;
+    private readonly Player     _player;
+    private readonly MapGrid    _grid;
     private readonly PlayerInput _input;
+    private readonly PlayerView _view;
 
-    private float       _cooldown;
-    private const float MoveDelay = 0.12f;
-
-    public PlayerController(Player player, MapGrid grid, PlayerInput input)
+    public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view)
     {
         _player = player;
         _grid   = grid;
         _input  = input;
+        _view   = view;
         _input.Player.Enable();
     }
 
     public void Tick()
     {
-        _cooldown -= Time.deltaTime;
-        if (_cooldown > 0f) return;
+        if (_view.IsAnimating) return;
 
         var input = _input.Player.Move.ReadValue<Vector2>();
         if (input == Vector2.zero) return;
@@ -42,6 +40,5 @@ public class PlayerController : ITickable
         if (_grid.GetTileType(nx, ny) == TileType.Wall) return;
 
         _player.MoveTo(nx, ny);
-        _cooldown = MoveDelay;
     }
 }

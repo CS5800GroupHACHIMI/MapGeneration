@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa2c930a49cdd81428b3cc06578c9528, type: 3}
-  m_Name: Rule Floor
+  m_Name: Rule Grass
   m_EditorClassIdentifier: Assembly-CSharp::TypedRuleTile
   m_DefaultSprite: {fileID: -7968582897747660167, guid: 43d741809be9f524abc22b8f81eb23af, type: 3}
   m_DefaultGameObject: {fileID: 0}
