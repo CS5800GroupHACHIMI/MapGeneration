@@ -8,7 +8,7 @@ Shader "UI/MinimapOverlay"
         _PlayerPos      ("Player UV Pos",     Vector)  = (0.5, 0.5, 0, 0)
         _PlayerColor    ("Player Color",      Color)   = (1, 0.2, 0.2, 1)
         // Cross arm half-length in UV units (set from C# as tiles/gridSize)
-        _CrossArm       ("Cross Arm UV",      Vector)  = (0.05, 0.05, 0, 0)
+        _CrossArm       ("Cross Arm UV",      Vector)  = (0.005, 0.005, 0, 0)
 
         // Camera wireframe rect (xmin, ymin, xmax, ymax) in UV units
         _CamRect        ("Camera Rect UV",    Vector)  = (0.2, 0.2, 0.8, 0.8)

@@ -23,8 +23,8 @@ public class MinimapView : MonoBehaviour
     [Header("Overlay")]
     [SerializeField] private Color colorPlayer     = new Color(1f, 0.2f, 0.2f);
     [SerializeField] private Color colorCamera     = new Color(1f, 1f,  0.3f);
-    [SerializeField] private float lineWidthPx     = 1.5f;
-    [SerializeField] private float crossArmTiles   = 3f;   // arm half-length in tile units
+    [SerializeField] private float lineWidthPx     = 3f;
+    [SerializeField] private float crossArmTiles   = 1.5f;   // arm half-length in tile units
 
     [Header("Fallback Tile Colors (used when sprite is not CPU-readable)")]
     [SerializeField] private Color colorAir   = new Color(0.05f, 0.05f, 0.05f);
