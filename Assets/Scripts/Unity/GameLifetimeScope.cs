@@ -18,6 +18,9 @@ public class GameLifetimeScope : LifetimeScope
     [Header("Player")]
     [SerializeField] private PlayerView         playerView;
 
+    [Header("Minimap")]
+    [SerializeField] private MinimapView        minimapView;
+
     protected override void Configure(IContainerBuilder builder)
     {
         builder.RegisterInstance(mapConfig);
@@ -33,6 +36,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(boardView);
         builder.RegisterComponent(runner);
         builder.RegisterComponent(playerView);
+        builder.RegisterComponent(minimapView);
 
         builder.RegisterEntryPoint<PlayerController>();
     }

@@ -39,3 +39,20 @@ MonoBehaviour:
     - {x: 1, y: -1, z: 0}
     m_RuleTransform: 0
   tileRegistry: {fileID: 0}
+  neighborGroups:
+  - label: OrGroup0
+    types: 
+  - label: OrGroup1
+    types: 
+  - label: OrGroup2
+    types: 
+  - label: OrGroup3
+    types: 
+  - label: OrGroup4
+    types: 
+  - label: OrGroup5
+    types: 
+  - label: OrGroup6
+    types: 
+  - label: OrGroup7
+    types: 

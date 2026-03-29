@@ -8,6 +8,7 @@ public class MapGeneratorRunner : MonoBehaviour
     private MapConfig        _config;
     private MapGrid          _grid;
     private TilemapBoardView _boardView;
+    private MinimapView      _minimap;
     private IMapGenerator    _generator;
     private Player           _player;
 
@@ -16,12 +17,14 @@ public class MapGeneratorRunner : MonoBehaviour
         MapConfig        config,
         MapGrid          grid,
         TilemapBoardView boardView,
+        MinimapView      minimap,
         IMapGenerator    generator,
         Player           player)
     {
         _config    = config;
         _grid      = grid;
         _boardView = boardView;
+        _minimap   = minimap;
         _generator = generator;
         _player    = player;
     }
@@ -39,5 +42,7 @@ public class MapGeneratorRunner : MonoBehaviour
 
         var start = _generator.GetStartPosition(_grid);
         _player.TeleportTo(start.x, start.y);
+
+        _minimap.Rebuild();
     }
 }

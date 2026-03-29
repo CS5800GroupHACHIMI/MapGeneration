@@ -4,6 +4,7 @@
     {
         Air,
         Wall,
-        Floor
+        Floor,
+        Path
     }
 }

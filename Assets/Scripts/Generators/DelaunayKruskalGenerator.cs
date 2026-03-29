@@ -24,11 +24,11 @@ namespace Generators
     {
         public override string Name => "DelaunayKruskal";
 
-        private const int RoomW        = 10;   // tiles per room (wall-to-wall)
-        private const int RoomH        = 8;
-        private const int RoomGap      = 2;    // minimum empty tile border between rooms
-        private const int PlaceAttempts = 300;
-        private const float LoopFraction = 0.15f; // fraction of non-MST edges to restore
+        [SerializeField] private int RoomW        = 10;   // tiles per room (wall-to-wall)
+        [SerializeField] private int RoomH        = 8;
+        [SerializeField] private int RoomGap      = 2;    // minimum empty tile border between rooms
+        [SerializeField] private int PlaceAttempts = 300;
+        [SerializeField] private float LoopFraction = 0.15f; // fraction of non-MST edges to restore
 
         // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ namespace Generators
 
         // ── Room placement ────────────────────────────────────────────────────────
 
-        private static List<RectInt> PlaceRooms(MapGrid grid)
+        private List<RectInt> PlaceRooms(MapGrid grid)
         {
             int maxFit = (grid.Width / (RoomW + RoomGap)) * (grid.Height / (RoomH + RoomGap));
             int target = Random.Range(6, Mathf.Min(20, maxFit) + 1);
@@ -103,7 +103,7 @@ namespace Generators
             return rooms;
         }
 
-        private static void CarveRoom(MapGrid grid, RectInt r)
+        private void CarveRoom(MapGrid grid, RectInt r)
         {
             for (int x = r.x + 1; x < r.x + r.width  - 1; x++)
             for (int y = r.y + 1; y < r.y + r.height - 1; y++)
@@ -116,7 +116,7 @@ namespace Generators
         /// L-shaped corridor from <paramref name="from"/> to <paramref name="to"/>.
         /// Horizontal leg first, then vertical; <paramref name="width"/> tiles wide.
         /// </summary>
-        private static void CarveCorridor(MapGrid grid, Vector2Int from, Vector2Int to, int width)
+        private void CarveCorridor(MapGrid grid, Vector2Int from, Vector2Int to, int width)
         {
             int half = width / 2;
             var cur = from;
@@ -152,7 +152,7 @@ namespace Generators
         /// Returns the set of Delaunay edges as normalized (min,max) index pairs.
         /// Requires at least 3 points.
         /// </summary>
-        private static List<(int, int)> Triangulate(List<Vector2Int> pts)
+        private List<(int, int)> Triangulate(List<Vector2Int> pts)
         {
             int n = pts.Count;
             var p = new Vector2[n + 3];
@@ -224,7 +224,7 @@ namespace Generators
         /// counter-clockwise triangle (a, b, c). Uses the standard 3×3 determinant
         /// method with double precision to avoid floating-point sign errors.
         /// </summary>
-        private static bool InCircumcircle(Vector2 a, Vector2 b, Vector2 c, Vector2 p)
+        private bool InCircumcircle(Vector2 a, Vector2 b, Vector2 c, Vector2 p)
         {
             double ax = a.x - p.x, ay = a.y - p.y;
             double bx = b.x - p.x, by = b.y - p.y;
@@ -236,11 +236,11 @@ namespace Generators
         }
 
         // Does triangle t contain the directed edge u→v?
-        private static bool TriHasDirectedEdge((int a, int b, int c) t, int u, int v) =>
+        private bool TriHasDirectedEdge((int a, int b, int c) t, int u, int v) =>
             (t.a == u && t.b == v) || (t.b == u && t.c == v) || (t.c == u && t.a == v);
 
         // Insert edge as (min, max) to deduplicate undirected edges
-        private static void NormEdge(HashSet<(int, int)> set, int a, int b)
+        private void NormEdge(HashSet<(int, int)> set, int a, int b)
         {
             if (a > b) (a, b) = (b, a);
             set.Add((a, b));
@@ -253,7 +253,7 @@ namespace Generators
         /// Kruskal's algorithm with Union-Find (path compression + union by rank).
         /// Edge weights are Euclidean distances.  O(E log E).
         /// </summary>
-        private static List<(int, int)> Kruskal(List<Vector2Int> pts, List<(int, int)> edges)
+        private List<(int, int)> Kruskal(List<Vector2Int> pts, List<(int, int)> edges)
         {
             var sorted = new List<(int, int)>(edges);
             sorted.Sort((e1, e2) =>
@@ -283,7 +283,7 @@ namespace Generators
         }
 
         // Path-compressed Find
-        private static int Find(int[] parent, int x)
+        private int Find(int[] parent, int x)
         {
             while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
             return x;
@@ -291,7 +291,7 @@ namespace Generators
 
         // ── Loop restoration ──────────────────────────────────────────────────────
 
-        private static List<(int, int)> PickLoopEdges(List<(int, int)> all, List<(int, int)> mst)
+        private List<(int, int)> PickLoopEdges(List<(int, int)> all, List<(int, int)> mst)
         {
             var mstSet = new HashSet<(int, int)>(mst);
             var pool   = new List<(int, int)>();
@@ -304,7 +304,7 @@ namespace Generators
             return pool.GetRange(0, Mathf.Min(count, pool.Count));
         }
 
-        private static void Shuffle<T>(List<T> list)
+        private void Shuffle<T>(List<T> list)
         {
             for (int i = list.Count - 1; i > 0; i--)
             {

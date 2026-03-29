@@ -25,6 +25,7 @@ public class PixelArtImportSettings : AssetPostprocessor
         importer.spritePixelsPerUnit = PPU;
         importer.filterMode          = FilterMode.Point;
         importer.mipmapEnabled       = GENERATE_MIPS;
+        importer.isReadable          = true;
 
         var settings = importer.GetDefaultPlatformTextureSettings();
         settings.format     = TextureImporterFormat.RGBA32;
