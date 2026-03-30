@@ -889,6 +889,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e2cc6182b9e1415ca1b92a587d941334, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapGeneratorRunner
+  animateGeneration: 1
+  tilesPerBatch: 20
+  batchDelay: 0.01
 --- !u!4 &1463471306
 Transform:
   m_ObjectHideFlags: 0

@@ -38,6 +38,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(playerView);
         builder.RegisterComponent(minimapView);
 
+        builder.RegisterEntryPoint<MapTraversal>().AsSelf();
         builder.RegisterEntryPoint<PlayerController>();
     }
 }

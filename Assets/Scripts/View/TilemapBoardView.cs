@@ -27,6 +27,16 @@ public class TilemapBoardView : MonoBehaviour
         tileMap.SetTile(new Vector3Int(x, y, 0), data);
     }
 
+    public void SetTileVisual(int x, int y, TileBase data)
+    {
+        tileMap.SetTile(new Vector3Int(x, y, 0), data);
+    }
+
+    public void RefreshAll()
+    {
+        tileMap.RefreshAllTiles();
+    }
+
     private void OnDestroy()
     {
         if (_grid != null) _grid.OnTileChanged -= OnTileChanged;

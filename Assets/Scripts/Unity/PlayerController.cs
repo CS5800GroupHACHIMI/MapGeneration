@@ -6,22 +6,25 @@ using VContainer.Unity;
 
 public class PlayerController : ITickable
 {
-    private readonly Player     _player;
-    private readonly MapGrid    _grid;
-    private readonly PlayerInput _input;
-    private readonly PlayerView _view;
+    private readonly Player        _player;
+    private readonly MapGrid       _grid;
+    private readonly PlayerInput   _input;
+    private readonly PlayerView    _view;
+    private readonly MapTraversal  _traversal;
 
-    public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view)
+    public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view, MapTraversal traversal)
     {
-        _player = player;
-        _grid   = grid;
-        _input  = input;
-        _view   = view;
+        _player    = player;
+        _grid      = grid;
+        _input     = input;
+        _view      = view;
+        _traversal = traversal;
         _input.Player.Enable();
     }
 
     public void Tick()
     {
+        if (_traversal.IsAutoWalking) return;
         if (_view.IsAnimating) return;
 
         var input = _input.Player.Move.ReadValue<Vector2>();
