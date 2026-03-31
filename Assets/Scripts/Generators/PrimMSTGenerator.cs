@@ -80,8 +80,9 @@ namespace Generators
         // =========================
         // MST EXTRACTION (Prim's algorithm, loop-free)
         // =========================
-        private static List<(Vector2Int from, Vector2Int to)> ExtractMSTFromAdjacencyMatrix(
-            int[,] adjacencyMatrix, Dictionary<Vector2Int, int> coord2Id)
+
+    private static List<(Vector2Int from, Vector2Int to)> ExtractMSTFromAdjacencyMatrix(
+        int[,] adjacencyMatrix, Dictionary<Vector2Int, int> coord2Id)
         {
             int n = adjacencyMatrix.GetLength(0);
             var mstEdges = new List<(Vector2Int from, Vector2Int to)>();
@@ -92,51 +93,68 @@ namespace Generators
             foreach (var kvp in coord2Id)
                 id2Coord[kvp.Value] = kvp.Key;
 
-            var inMST = new bool[n];
-            var minEdge = new int[n];
-            var parent = new int[n];
+            var inMST = new HashSet<int>();
 
-            for (int i = 0; i < n; i++)
+            var seenEdges = new HashSet<(int from, int to)>();
+
+            // Min-heap using (weight, from, to)
+            var edgeHeap = new SortedSet<(int weight, int from, int to)>(
+                Comparer<(int weight, int from, int to)>.Create((a, b) =>
+                {
+                    int cmp = a.weight.CompareTo(b.weight);
+                    if (cmp == 0) cmp = a.from.CompareTo(b.from);
+                    if (cmp == 0) cmp = a.to.CompareTo(b.to);
+                    return cmp;
+                })
+            );
+
+            // Start with vertex 0
+            inMST.Add(0);
+
+            // Add all edges from vertex 0 to heap
+            for (int v = 0; v < n; v++)
             {
-                minEdge[i] = int.MaxValue;
-                parent[i] = -1;
+                if (adjacencyMatrix[0, v] > 0)
+                    edgeHeap.Add((adjacencyMatrix[0, v], 0, v));
             }
 
-            minEdge[0] = 0;
-
-            for (int count = 0; count < n; count++)
+            while (inMST.Count < n)
             {
-                // Pick vertex with minimum edge weight not in MST
-                int u = -1;
-                int minKey = int.MaxValue;
-                for (int v = 0; v < n; v++)
+                if (edgeHeap.Count == 0) break; // no more edges to process
+                // Pick the smallest edge
+                var minEdge = edgeHeap.Min;
+                edgeHeap.Remove(minEdge);
+
+                int u = minEdge.from;
+                int v = minEdge.to;
+
+                if (inMST.Contains(v)) continue;
+
+                // Add edge to MST (both directions)
+                mstEdges.Add((id2Coord[u], id2Coord[v]));
+                seenEdges.Add((u, v));
+                seenEdges.Add((v, u));
+
+                inMST.Add(v);
+
+
+                // Add all edges from newly added vertex v
+                for (int w = 0; w < n; w++)
                 {
-                    if (!inMST[v] && minEdge[v] < minKey)
+                    if (!inMST.Contains(w) && adjacencyMatrix[v, w] > 0)
                     {
-                        minKey = minEdge[v];
-                        u = v;
+                        edgeHeap.Add((adjacencyMatrix[v, w], v, w));
                     }
                 }
+            }
 
-                if (u == -1) break; // disconnected graph
-
-                inMST[u] = true;
-
-                if (parent[u] != -1)
-                    mstEdges.Add((id2Coord[parent[u]], id2Coord[u]));
-
-                // Update neighboring vertices
-                for (int v = 0; v < n; v++)
-                {
-                    if (!inMST[v] && adjacencyMatrix[u, v] > 0 && adjacencyMatrix[u, v] < minEdge[v])
-                    {
-                        minEdge[v] = adjacencyMatrix[u, v];
-                        parent[v] = u;
-                    }
-                }
+            // Debug print edges
+            foreach (var edge in mstEdges)
+            {
+                Debug.Log($"Edge: {edge.from} -> {edge.to}");
             }
 
             return mstEdges;
-        }
-    }
+     }
+}
 }

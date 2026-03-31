@@ -82,8 +82,6 @@ namespace Generators
             Vector2Int spawnRoom = roomPositions[Random.Range(0, roomPositions.Count)];
             _startPosition = GetRoomCenter(spawnRoom);
 
-            // Add edges to adjacency list if A->B and then B->C
-
             // 7️⃣ Build adjacency matrix
             _coord2VertexId = new Dictionary<Vector2Int, int>();
             for (int i = 0; i < roomPositions.Count; i++)
@@ -92,18 +90,25 @@ namespace Generators
             int n = roomPositions.Count;
             _weightedAdjacencyMatrix = new int[n, n];
 
+    
             foreach (var kvp in _weightedAdjacencyList)
             {
                 int fromId = _coord2VertexId[kvp.Key];
                 foreach (var (neighbor, weight, tiles) in kvp.Value)
                 {
-                    int toId = _coord2VertexId[neighbor];
-                    _weightedAdjacencyMatrix[fromId, toId] = weight;
-                    _weightedAdjacencyMatrix[toId, fromId] = weight;
-                    _edgeTiles[(kvp.Key, neighbor)] = tiles;
-                    _edgeTiles[(neighbor, kvp.Key)] = tiles;
+                    // Only include edges that do NOT pass through another room
+                    if (!DoesEdgePassThroughOtherRoom(kvp.Key, neighbor, tiles))
+                    {
+                        int toId = _coord2VertexId[neighbor];
+                        _weightedAdjacencyMatrix[fromId, toId] = weight;
+                        _weightedAdjacencyMatrix[toId, fromId] = weight;
+                        _edgeTiles[(kvp.Key, neighbor)] = tiles;
+                        _edgeTiles[(neighbor, kvp.Key)] = tiles;
+                    }
                 }
             }
+
+            // re-make the adjacency list based on the adjacency matrix to ensure consistency
         }
 
         // =========================
@@ -112,24 +117,97 @@ namespace Generators
 
         private void ConnectRooms(MapGrid grid, Vector2Int a, Vector2Int b)
         {
+
+
             Vector2Int centerA = GetRoomCenter(a);
             Vector2Int centerB = GetRoomCenter(b);
 
-            int weight = Mathf.Abs(centerA.x - centerB.x) + Mathf.Abs(centerA.y - centerB.y);
-
             List<Vector2Int> corridorTiles = CarveCorridor(grid, centerA, centerB);
 
-            _weightedAdjacencyList[a].Add((b, weight, corridorTiles));
-            _weightedAdjacencyList[b].Add((a, weight, corridorTiles));
+            // Check if corridor passes through another room
+            Vector2Int? blockingRoom = null;
 
-            _edgeTiles[(a, b)] = corridorTiles;
-            _edgeTiles[(b, a)] = corridorTiles;
+            foreach (var room in _weightedAdjacencyList.Keys)
+            {
+                if (room == a || room == b) continue;
+                var roomTiles = GetRoomTiles(room);
+                if (corridorTiles.Exists(tile => roomTiles.Contains(tile)))
+                {
+                    blockingRoom = room;
+                    break;
+                }
+            }
 
+            if (blockingRoom == null)
+            {
+                // No blocking room, safe to add edge
+                int weight = corridorTiles.Count;
+                _weightedAdjacencyList[a].Add((b, weight, corridorTiles));
+                _weightedAdjacencyList[b].Add((a, weight, corridorTiles));
+                _edgeTiles[(a, b)] = corridorTiles;
+                _edgeTiles[(b, a)] = corridorTiles;
+            }
+            else
+            {
+                Debug.Log($"Edge {a} <-> {b} blocked by {blockingRoom.Value}, splitting corridor");
+                // Split corridor through blocking room c
+                Vector2Int c = blockingRoom.Value;
+                Vector2Int centerC = GetRoomCenter(c);
+
+                // 1️⃣ a -> c
+                List<Vector2Int> corridorAC = CarveCorridor(grid, centerA, centerC);
+                int weightAC = corridorAC.Count;
+                _weightedAdjacencyList[a].Add((c, weightAC, corridorAC));
+                _weightedAdjacencyList[c].Add((a, weightAC, corridorAC));
+                _edgeTiles[(a, c)] = corridorAC;
+                _edgeTiles[(c, a)] = corridorAC;
+
+                // 2️⃣ c -> b
+                List<Vector2Int> corridorCB = CarveCorridor(grid, centerC, centerB);
+                int weightCB = corridorCB.Count;
+                _weightedAdjacencyList[c].Add((b, weightCB, corridorCB));
+                _weightedAdjacencyList[b].Add((c, weightCB, corridorCB));
+                _edgeTiles[(c, b)] = corridorCB;
+                _edgeTiles[(b, c)] = corridorCB;
+
+                // 3️⃣ Remove direct a -> b if it exists
+                _weightedAdjacencyList[a].RemoveAll(e => e.neighbor == b);
+                _weightedAdjacencyList[b].RemoveAll(e => e.neighbor == a);
+                _edgeTiles.Remove((a, b));
+                _edgeTiles.Remove((b, a));
+            }
         }
 
         private bool HasEdge(Vector2Int a, Vector2Int b)
         {
             return _weightedAdjacencyList[a].Exists(e => e.neighbor == b);
+        }
+
+        private bool DoesEdgePassThroughOtherRoom(Vector2Int from, Vector2Int to, List<Vector2Int> corridorTiles)
+        {
+            foreach (var room in _weightedAdjacencyList.Keys)
+            {
+                if (room == from || room == to) continue;
+
+                foreach (var tile in corridorTiles)
+                {
+                    var roomTiles = GetRoomTiles(room);
+                    if (roomTiles.Contains(tile))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        private List<Vector2Int> GetRoomTiles(Vector2Int roomCenter)
+        {
+            var tiles = new List<Vector2Int>();
+            int ox = roomCenter.x - RoomW / 2;
+            int oy = roomCenter.y - RoomH / 2;
+            for (int x = ox; x < ox + RoomW; x++)
+                for (int y = oy; y < oy + RoomH; y++)
+                    tiles.Add(new Vector2Int(x, y));
+            return tiles;
         }
 
         // =========================
@@ -148,6 +226,12 @@ namespace Generators
             for (int x = ox + 1; x < ox + RoomW - 1; x++)
                 for (int y = oy + 1; y < oy + RoomH - 1; y++)
                     grid.Set(x, y, TileType.Floor);
+        }
+
+        private bool AreRoomsOrthogonal(Vector2Int a, Vector2Int b)
+        {
+            // Return true if rooms share the same row or column
+            return a.x == b.x || a.y == b.y;
         }
 
         private static List<Vector2Int> CarveCorridor(MapGrid grid, Vector2Int from, Vector2Int to)
