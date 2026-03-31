@@ -109,13 +109,16 @@ namespace Generators
             );
 
             // Start with vertex 0
-            inMST.Add(0);
+            // Find the vertex ID corresponding to (0,0)
+            int startVertex = 0;
+            inMST.Add(startVertex);
 
-            // Add all edges from vertex 0 to heap
+            // Add all edges from startVertex
             for (int v = 0; v < n; v++)
             {
-                if (adjacencyMatrix[0, v] > 0)
-                    edgeHeap.Add((adjacencyMatrix[0, v], 0, v));
+                if (adjacencyMatrix[startVertex, v] > 0)
+                    edgeHeap.Add((adjacencyMatrix[startVertex, v], startVertex, v));
+                Debug.Log($"edge from and to: {startVertex}, {v} ");
             }
 
             while (inMST.Count < n)
@@ -130,12 +133,14 @@ namespace Generators
 
                 if (inMST.Contains(v)) continue;
 
-                // Add edge to MST (both directions)
+                // Add edge to MST 
                 mstEdges.Add((id2Coord[u], id2Coord[v]));
-                seenEdges.Add((u, v));
-                seenEdges.Add((v, u));
-
                 inMST.Add(v);
+
+                foreach (var edge in mstEdges)
+                {
+                    Debug.Log($"Edge from ({edge.from.x},{edge.from.y}) to ({edge.to.x},{edge.to.y})");
+                }
 
 
                 // Add all edges from newly added vertex v
@@ -146,6 +151,23 @@ namespace Generators
                         edgeHeap.Add((adjacencyMatrix[v, w], v, w));
                     }
                 }
+            }
+
+            var allEdges = new List<(Vector2Int from, Vector2Int to)>();
+            for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        if (adjacencyMatrix[i, j] > 0)
+                        {
+                            allEdges.Add((id2Coord[i], id2Coord[j]));
+                        }
+                    }
+            }
+
+            foreach (var edge in allEdges)
+            {
+                Debug.Log($"Seen edge: {edge.from} -> {edge.to}");
             }
 
             // Debug print edges
