@@ -730,7 +730,7 @@ MonoBehaviour:
   tilemap: {fileID: 1552436491}
   boardView: {fileID: 1552436489}
   runner: {fileID: 1463471305}
-  generator: {fileID: 11400000, guid: 994793045a822f54eb962c0e31a53b4b, type: 2}
+  generator: {fileID: 11400000, guid: 29e35be43ba342f428c6dc95cbd2c418, type: 2}
   playerView: {fileID: 5462400168340658738}
   minimapView: {fileID: 348788419}
 --- !u!4 &812984698

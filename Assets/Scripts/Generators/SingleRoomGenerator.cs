@@ -1,5 +1,6 @@
 ﻿using Data;
 using Model;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Generators
@@ -28,7 +29,12 @@ namespace Generators
                 else if (isWall)
                     grid.Set(x, y, TileType.Wall);
                 else
+                {
                     grid.Set(x, y, TileType.Floor);
+                
+                    if (x == grid.Width - 3 * margin || x == 3 * margin) grid.Set(x, y, TileType.Path);
+                    if (y == grid.Height - 3 * margin || y == 3 * margin) grid.Set(x, y, TileType.Path);
+                }
             }
 
             _startPosition = new Vector2Int(grid.Width / 2, grid.Height / 2);
