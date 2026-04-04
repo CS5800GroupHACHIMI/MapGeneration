@@ -12,18 +12,20 @@ namespace Generators
 
         public override void Generate(MapGrid grid, MapConfig config)
         {
-            // Step 1: Generate the base rooms + corridors
+            // Step 1: Generate rooms + corridors
             base.Generate(grid, config);
 
-            // Step 2: Extract MST edges from the adjacency matrix
+            // Step 2: Extract MST edges (safe, loop-free)
             var mstEdges = ExtractMSTFromAdjacencyMatrix(_weightedAdjacencyMatrix, _coord2VertexId);
 
-            // Step 3: Draw MST lines on top of the map
+            // Step 3: Draw MST along actual corridor tiles
             DrawMSTLines(grid, mstEdges);
         }
 
-        // Draw thin orange MST lines
-        private static void DrawMSTLines(MapGrid grid, List<(Vector2Int, Vector2Int)> mstEdges)
+        // =========================
+        // DRAW MST USING CORRIDOR TILES
+        // =========================
+        private void DrawMSTLines(MapGrid grid, List<(Vector2Int from, Vector2Int to)> mstEdges)
         {
             if (mstEdges.Count == 0) return;
 
@@ -38,42 +40,36 @@ namespace Generators
                 lr.material = new Material(Shader.Find("Sprites/Default"));
                 lr.startColor = lr.endColor = new Color(1f, 0.5f, 0f, 1f); // orange
                 lr.startWidth = lr.endWidth = 0.05f;
-                lr.positionCount = 0;
                 lr.useWorldSpace = true;
-                lr.sortingOrder = 10; // ensure it's on top of tiles
+                lr.sortingOrder = 10;
 
-                // Follow the L-shaped corridor (horizontal then vertical)
-                List<Vector3> points = new List<Vector3>();
-                Vector2Int cur = GetRoomCenter(from);
-
-                points.Add(GridToWorld(cur));
-
-                // Horizontal movement
-                while (cur.x != GetRoomCenter(to).x)
+                // Use actual corridor tiles if available
+                List<Vector2Int> tiles;
+                if (_edgeTiles != null && _edgeTiles.TryGetValue((from, to), out tiles))
                 {
-                    cur.x += (GetRoomCenter(to).x > cur.x) ? 1 : -1;
-                    points.Add(GridToWorld(cur));
+                    Vector3[] positions = new Vector3[tiles.Count];
+                    for (int i = 0; i < tiles.Count; i++)
+                        positions[i] = GridToWorld(tiles[i]);
+                    lr.positionCount = positions.Length;
+                    lr.SetPositions(positions);
                 }
-
-                // Vertical movement
-                while (cur.y != GetRoomCenter(to).y)
+                else
                 {
-                    cur.y += (GetRoomCenter(to).y > cur.y) ? 1 : -1;
-                    points.Add(GridToWorld(cur));
+                    // Fallback: straight line between room centers
+                    Vector2Int centerFrom = GetRoomCenter(from);
+                    Vector2Int centerTo = GetRoomCenter(to);
+                    Vector3[] positions = new Vector3[] { GridToWorld(centerFrom), GridToWorld(centerTo) };
+                    lr.positionCount = 2;
+                    lr.SetPositions(positions);
                 }
-
-                lr.positionCount = points.Count;
-                lr.SetPositions(points.ToArray());
             }
         }
 
-        // Convert grid coordinate to Unity world position (z=0 plane)
         private static Vector3 GridToWorld(Vector2Int gridPos)
         {
             return new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f);
         }
 
-        // Center of a room
         private static Vector2Int GetRoomCenter(Vector2Int gridPos)
         {
             const int RoomW = 10;
@@ -81,61 +77,106 @@ namespace Generators
             return new Vector2Int(gridPos.x * RoomW + RoomW / 2, gridPos.y * RoomH + RoomH / 2);
         }
 
-        // Compute MST using Prim's algorithm from adjacency matrix
-        private static List<(Vector2Int, Vector2Int)> ExtractMSTFromAdjacencyMatrix(
-            int[,] adjacencyMatrix, Dictionary<Vector2Int, int> coord2Id)
+        // =========================
+        // MST EXTRACTION (Prim's algorithm, loop-free)
+        // =========================
+
+    private static List<(Vector2Int from, Vector2Int to)> ExtractMSTFromAdjacencyMatrix(
+        int[,] adjacencyMatrix, Dictionary<Vector2Int, int> coord2Id)
         {
             int n = adjacencyMatrix.GetLength(0);
-            var mstEdges = new List<(Vector2Int, Vector2Int)>();
+            var mstEdges = new List<(Vector2Int from, Vector2Int to)>();
             if (n == 0) return mstEdges;
 
-            var inTree = new bool[n];
-            var keys = new int[n];
-            var parent = new int[n];
-            for (int i = 0; i < n; i++)
-            {
-                keys[i] = int.MaxValue;
-                parent[i] = -1;
-            }
-
-            keys[0] = 0;
-
-            for (int count = 0; count < n; count++)
-            {
-                int u = -1;
-                int minKey = int.MaxValue;
-                for (int v = 0; v < n; v++)
-                {
-                    if (!inTree[v] && keys[v] < minKey)
-                    {
-                        minKey = keys[v];
-                        u = v;
-                    }
-                }
-
-                inTree[u] = true;
-
-                for (int v = 0; v < n; v++)
-                {
-                    if (adjacencyMatrix[u, v] != 0 && !inTree[v] && adjacencyMatrix[u, v] < keys[v])
-                    {
-                        keys[v] = adjacencyMatrix[u, v];
-                        parent[v] = u;
-                    }
-                }
-            }
-
+            // Map ID → coordinates
             var id2Coord = new Vector2Int[n];
             foreach (var kvp in coord2Id)
                 id2Coord[kvp.Value] = kvp.Key;
 
-            for (int v = 1; v < n; v++)
+            var inMST = new HashSet<int>();
+
+            var seenEdges = new HashSet<(int from, int to)>();
+
+            // Min-heap using (weight, from, to)
+            var edgeHeap = new SortedSet<(int weight, int from, int to)>(
+                Comparer<(int weight, int from, int to)>.Create((a, b) =>
+                {
+                    int cmp = a.weight.CompareTo(b.weight);
+                    if (cmp == 0) cmp = a.from.CompareTo(b.from);
+                    if (cmp == 0) cmp = a.to.CompareTo(b.to);
+                    return cmp;
+                })
+            );
+
+            // Start with vertex 0
+            // Find the vertex ID corresponding to (0,0)
+            int startVertex = 0;
+            inMST.Add(startVertex);
+
+            // Add all edges from startVertex
+            for (int v = 0; v < n; v++)
             {
-                if (parent[v] != -1)
-                    mstEdges.Add((id2Coord[parent[v]], id2Coord[v]));
+                if (adjacencyMatrix[startVertex, v] > 0)
+                    edgeHeap.Add((adjacencyMatrix[startVertex, v], startVertex, v));
+                Debug.Log($"edge from and to: {startVertex}, {v} ");
+            }
+
+            while (inMST.Count < n)
+            {
+                if (edgeHeap.Count == 0) break; // no more edges to process
+                // Pick the smallest edge
+                var minEdge = edgeHeap.Min;
+                edgeHeap.Remove(minEdge);
+
+                int u = minEdge.from;
+                int v = minEdge.to;
+
+                if (inMST.Contains(v)) continue;
+
+                // Add edge to MST 
+                mstEdges.Add((id2Coord[u], id2Coord[v]));
+                inMST.Add(v);
+
+                foreach (var edge in mstEdges)
+                {
+                    Debug.Log($"Edge from ({edge.from.x},{edge.from.y}) to ({edge.to.x},{edge.to.y})");
+                }
+
+
+                // Add all edges from newly added vertex v
+                for (int w = 0; w < n; w++)
+                {
+                    if (!inMST.Contains(w) && adjacencyMatrix[v, w] > 0)
+                    {
+                        edgeHeap.Add((adjacencyMatrix[v, w], v, w));
+                    }
+                }
+            }
+
+            var allEdges = new List<(Vector2Int from, Vector2Int to)>();
+            for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        if (adjacencyMatrix[i, j] > 0)
+                        {
+                            allEdges.Add((id2Coord[i], id2Coord[j]));
+                        }
+                    }
+            }
+
+            foreach (var edge in allEdges)
+            {
+                Debug.Log($"Seen edge: {edge.from} -> {edge.to}");
+            }
+
+            // Debug print edges
+            foreach (var edge in mstEdges)
+            {
+                Debug.Log($"Edge: {edge.from} -> {edge.to}");
             }
 
             return mstEdges;
-        }
-    }
+     }
+}
 }

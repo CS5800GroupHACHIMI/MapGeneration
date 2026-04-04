@@ -220,7 +220,7 @@ MonoBehaviour:
   minimapMaterial: {fileID: 2100000, guid: e2554a66f08d5d4489a52040302ab99c, type: 2}
   colorPlayer: {r: 1, g: 0, b: 0, a: 1}
   colorCamera: {r: 1, g: 1, b: 1, a: 1}
-  lineWidthPx: 3
+  lineWidthPx: 7
   crossArmTiles: 0.5
   colorAir: {r: 0.05, g: 0.05, b: 0.05, a: 1}
   colorWall: {r: 0.2, g: 0.2, b: 0.2, a: 1}
@@ -730,7 +730,7 @@ MonoBehaviour:
   tilemap: {fileID: 1552436491}
   boardView: {fileID: 1552436489}
   runner: {fileID: 1463471305}
-  generator: {fileID: 11400000, guid: 80c02f358c595f04abbe04bcf9c45e23, type: 2}
+  generator: {fileID: 11400000, guid: 29e35be43ba342f428c6dc95cbd2c418, type: 2}
   playerView: {fileID: 5462400168340658738}
   minimapView: {fileID: 348788419}
 --- !u!4 &812984698
@@ -890,8 +890,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapGeneratorRunner
   animateGeneration: 1
-  tilesPerBatch: 20
-  batchDelay: 0.01
+  roomDelay: 0.3
+  zoomBackDuration: 1
 --- !u!4 &1463471306
 Transform:
   m_ObjectHideFlags: 0
