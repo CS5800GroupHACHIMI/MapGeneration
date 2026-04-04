@@ -17,11 +17,12 @@ public class PlayerView : MonoBehaviour
     private Vector3 _toPosition;
     
     private float   _moveTime;
+    private float   _currentDuration;
     private bool    _isMoving;
 
     // Ready for next move when animation is 90% done, so the next tile starts
     // before the ease-out fully stops — eliminates the frame-boundary pause.
-    public bool IsAnimating => _isMoving && _moveTime < moveDuration * 0.9f;
+    public bool IsAnimating => _isMoving && _moveTime < _currentDuration * 0.9f;
 
     [Inject]
     public void Construct(Player model, Tilemap tilemap)
@@ -39,8 +40,15 @@ public class PlayerView : MonoBehaviour
     {
         _fromPosition = transform.position;
         _toPosition   = GridToWorld(x, y);
-        _moveTime     = 0f;
-        _isMoving     = true;
+
+        // Scale duration by actual distance so diagonal moves (√2 tiles)
+        // animate at the same pixel-per-second speed as cardinal moves.
+        float tileSize = _tilemap.cellSize.x;
+        float dist     = Vector3.Distance(_fromPosition, _toPosition);
+        _currentDuration = moveDuration * (dist / tileSize);
+
+        _moveTime = 0f;
+        _isMoving = true;
 
         float dx = _toPosition.x - _fromPosition.x;
         if (dx > 0.01f)
@@ -68,7 +76,7 @@ public class PlayerView : MonoBehaviour
         if (!_isMoving) return;
 
         _moveTime += Time.deltaTime;
-        float t    = Mathf.Clamp01(_moveTime / moveDuration);
+        float t    = Mathf.Clamp01(_moveTime / _currentDuration);
 
         transform.position = Vector3.Lerp(_fromPosition, _toPosition, t);
 
