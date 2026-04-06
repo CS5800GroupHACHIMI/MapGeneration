@@ -39,22 +39,28 @@ public class PlayerController : ITickable
         int nx = _player.X + dx;
         int ny = _player.Y + dy;
 
-        // For diagonals, fall back to cardinal if the diagonal tile is blocked.
-        if (!_grid.InBounds(nx, ny) || _grid.GetTileType(nx, ny) == TileType.Wall)
+        if (dx != 0 && dy != 0)
         {
-            // Try horizontal only
-            if (dx != 0 && dy != 0)
-            {
-                int hx = _player.X + dx, hy = _player.Y;
-                int vx = _player.X,      vy = _player.Y + dy;
+            // Diagonal move: require both cardinal neighbours to be passable (no corner-cutting).
+            int hx = _player.X + dx, hy = _player.Y;
+            int vx = _player.X,      vy = _player.Y + dy;
+            bool hOpen = _grid.InBounds(hx, hy) && _grid.GetTileType(hx, hy) != TileType.Wall;
+            bool vOpen = _grid.InBounds(vx, vy) && _grid.GetTileType(vx, vy) != TileType.Wall;
+            bool dOpen = _grid.InBounds(nx, ny) && _grid.GetTileType(nx, ny) != TileType.Wall;
 
-                if (_grid.InBounds(hx, hy) && _grid.GetTileType(hx, hy) != TileType.Wall)
-                    { nx = hx; ny = hy; }
-                else if (_grid.InBounds(vx, vy) && _grid.GetTileType(vx, vy) != TileType.Wall)
-                    { nx = vx; ny = vy; }
-                else return;
+            if (hOpen && vOpen && dOpen)
+            {
+                // Full diagonal allowed — do nothing, nx/ny already set.
             }
+            else if (hOpen)
+                { nx = hx; ny = hy; }
+            else if (vOpen)
+                { nx = vx; ny = vy; }
             else return;
+        }
+        else if (!_grid.InBounds(nx, ny) || _grid.GetTileType(nx, ny) == TileType.Wall)
+        {
+            return;
         }
 
         _player.MoveTo(nx, ny);
