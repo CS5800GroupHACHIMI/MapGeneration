@@ -79,7 +79,45 @@ namespace Generators
                 ConnectRooms(grid, a, b);
             }
 
-            // 6️⃣ Spawn point
+            // 6️⃣ Restore room interiors: Path corridors may have overwritten Floor tiles
+            // inside rooms that were placed after the corridor was carved.
+            foreach (var pos in roomPositions)
+            {
+                int ox = pos.x * RoomW, oy = pos.y * RoomH;
+                for (int x = ox + 1; x < ox + RoomW - 1; x++)
+                    for (int y = oy + 1; y < oy + RoomH - 1; y++)
+                        if (grid.GetTileType(x, y) == TileType.Path)
+                            grid.Set(x, y, TileType.Floor);
+            }
+
+            // 6b️⃣ Final pass: for every pair of orthogonally adjacent rooms, scan the
+            // direct wall-to-wall corridor tiles and upgrade Path → Floor.
+            // This catches cases where a long Path corridor (e.g. A→C) carved through
+            // the A-B connection zone before the A-B edge was ever registered.
+            for (int i = 0; i < roomPositions.Count; i++)
+            for (int j = i + 1; j < roomPositions.Count; j++)
+            {
+                var ra = roomPositions[i];
+                var rb = roomPositions[j];
+                if (Mathf.Abs(ra.x - rb.x) + Mathf.Abs(ra.y - rb.y) != 1) continue;
+
+                var (exitA, exitB) = GetCorridorEndpoints(ra, rb);
+
+                // Walk the straight line between the two wall exit points and
+                // upgrade any Path tile to Floor.
+                Vector2Int cur = exitA;
+                while (cur != exitB)
+                {
+                    if (grid.GetTileType(cur.x, cur.y) == TileType.Path)
+                        grid.Set(cur.x, cur.y, TileType.Floor);
+                    if (cur.x != exitB.x) cur.x += cur.x < exitB.x ? 1 : -1;
+                    else                  cur.y += cur.y < exitB.y ? 1 : -1;
+                }
+                if (grid.GetTileType(exitB.x, exitB.y) == TileType.Path)
+                    grid.Set(exitB.x, exitB.y, TileType.Floor);
+            }
+
+            // 7️⃣ Spawn point
             Vector2Int spawnRoom = roomPositions[Random.Range(0, roomPositions.Count)];
             _startPosition = GetRoomCenter(spawnRoom);
 
@@ -145,8 +183,16 @@ namespace Generators
             Vector2Int centerA = GetRoomCenter(a);
             Vector2Int centerB = GetRoomCenter(b);
 
-            // Carve the corridor between the two room centers
-            List<Vector2Int> corridorTiles = CarveCorridor(grid, centerA, centerB);
+            // Rooms orthogonally adjacent in chunk space (Manhattan distance == 1)
+            // share a wall and get a Floor corridor (grass blends with rooms).
+            // Everything else — diagonal or multi-chunk — gets a Path corridor.
+            int chunkDist = Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+            TileType corridorTile = chunkDist == 1 ? TileType.Floor : TileType.Path;
+
+            // Start/end at the room wall, not the room center, so the corridor
+            // does not carve through the room interior.
+            var (exitA, exitB) = GetCorridorEndpoints(a, b);
+            List<Vector2Int> corridorTiles = CarveCorridor(grid, exitA, exitB, corridorTile);
 
             // Compute weight based on corridor length
             int weight = corridorTiles.Count;
@@ -205,6 +251,55 @@ namespace Generators
             return new Vector2Int(gridPos.x * RoomW + RoomW / 2, gridPos.y * RoomH + RoomH / 2);
         }
 
+        // Returns the wall tile exit point of room A toward B, and the wall tile
+        // entry point of room B from A, so corridors start/end at room walls
+        // instead of room centers.
+        //
+        // L-shape convention: horizontal segment first, then vertical.
+        //   exitA  = wall tile of A in the horizontal direction toward B
+        //   exitB  = wall tile of B hit by the vertical segment arriving from exitA.y
+        //   Special case: same column → purely vertical, both exits are top/bottom walls.
+        private static (Vector2Int exitA, Vector2Int exitB) GetCorridorEndpoints(Vector2Int a, Vector2Int b)
+        {
+            int ox_A = a.x * RoomW, oy_A = a.y * RoomH;
+            int ox_B = b.x * RoomW, oy_B = b.y * RoomH;
+            int cx_A = ox_A + RoomW / 2, cy_A = oy_A + RoomH / 2;
+            int cx_B = ox_B + RoomW / 2, cy_B = oy_B + RoomH / 2;
+
+            Vector2Int exitA, exitB;
+
+            if (a.x != b.x)
+            {
+                // Horizontal-first L-shape: exit A from left or right wall
+                exitA = b.x > a.x
+                    ? new Vector2Int(ox_A + RoomW - 1, cy_A)   // right wall of A
+                    : new Vector2Int(ox_A,              cy_A);  // left wall of A
+
+                // Vertical segment arrives at B from bottom or top wall
+                if (cy_A < cy_B)
+                    exitB = new Vector2Int(cx_B, oy_B);                // bottom wall of B
+                else if (cy_A > cy_B)
+                    exitB = new Vector2Int(cx_B, oy_B + RoomH - 1);    // top wall of B
+                else
+                    exitB = b.x > a.x                                  // same row: horizontal only
+                        ? new Vector2Int(ox_B,              cy_B)      // left wall of B
+                        : new Vector2Int(ox_B + RoomW - 1,  cy_B);     // right wall of B
+            }
+            else
+            {
+                // Same column: purely vertical corridor
+                exitA = b.y > a.y
+                    ? new Vector2Int(cx_A, oy_A + RoomH - 1)   // top wall of A
+                    : new Vector2Int(cx_A, oy_A);               // bottom wall of A
+
+                exitB = b.y > a.y
+                    ? new Vector2Int(cx_B, oy_B)                // bottom wall of B
+                    : new Vector2Int(cx_B, oy_B + RoomH - 1);  // top wall of B
+            }
+
+            return (exitA, exitB);
+        }
+
         private static void CarveRoom(MapGrid grid, int cx, int cy)
         {
             int ox = cx * RoomW;
@@ -214,22 +309,23 @@ namespace Generators
                     grid.Set(x, y, TileType.Floor);
         }
 
-        private static List<Vector2Int> CarveCorridor(MapGrid grid, Vector2Int from, Vector2Int to)
+        private static List<Vector2Int> CarveCorridor(MapGrid grid, Vector2Int from, Vector2Int to, TileType tileType = TileType.Floor)
         {
             Vector2Int cur = from;
             List<Vector2Int> tiles = new List<Vector2Int> { cur };
+            grid.Set(cur.x, cur.y, tileType); // carve the exit wall so the room is not sealed
 
             while (cur.x != to.x)
             {
                 cur.x += (to.x > cur.x) ? 1 : -1;
-                grid.Set(cur.x, cur.y, TileType.Floor);
+                grid.Set(cur.x, cur.y, tileType);
                 tiles.Add(cur);
             }
 
             while (cur.y != to.y)
             {
                 cur.y += (to.y > cur.y) ? 1 : -1;
-                grid.Set(cur.x, cur.y, TileType.Floor);
+                grid.Set(cur.x, cur.y, tileType);
                 tiles.Add(cur);
             }
 
