@@ -165,10 +165,11 @@ public class MinimapView : MonoBehaviour
     {
         if (_panelRT == null) return;
 
-        _panelRT.anchorMin = new Vector2(0.5f, 0.5f);
-        _panelRT.anchorMax = new Vector2(0.5f, 0.5f);
-        _panelRT.pivot     = new Vector2(0.5f, 0.5f);
-        _panelRT.sizeDelta = new Vector2(FullSize, FullSize);
+        // Stretch to fill the entire screen using anchors; sizeDelta = 0
+        _panelRT.anchorMin        = new Vector2(0f, 0f);
+        _panelRT.anchorMax        = new Vector2(1f, 1f);
+        _panelRT.pivot            = new Vector2(0.5f, 0.5f);
+        _panelRT.sizeDelta        = Vector2.zero;
         _panelRT.anchoredPosition = Vector2.zero;
 
         mapImage.uvRect = new Rect(0, 0, 1, 1);
