@@ -27,6 +27,9 @@ public class GameLifetimeScope : LifetimeScope
     [Header("Exit")]
     [SerializeField] private ExitDoor           exitDoor;
 
+    [Header("Rooms")]
+    [SerializeField] private RoomManager roomManager;
+
     protected override void Configure(IContainerBuilder builder)
     {
         builder.RegisterInstance(mapConfig);
@@ -45,6 +48,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(minimapView);
         builder.RegisterComponent(fogOfWar);
         builder.RegisterComponent(exitDoor);
+        builder.RegisterComponent(roomManager);
 
         builder.RegisterEntryPoint<MapTraversal>().AsSelf();
         builder.RegisterEntryPoint<PlayerController>();

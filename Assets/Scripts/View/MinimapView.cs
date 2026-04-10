@@ -31,6 +31,7 @@ public class MinimapView : MonoBehaviour
     private Dictionary<TileType, Color32> _tileColors;
     private RectTransform                 _panelRT;
     private static readonly Color32       FogGray = new Color32(25, 25, 25, 255);
+    private Dictionary<Vector2Int, Color32> _icons = new();
 
     // ── Minimap mode ────────────────────────────────────────────────────────
     private bool _isFullMap;
@@ -94,6 +95,23 @@ public class MinimapView : MonoBehaviour
         _isFullMap = false;
         ApplySmallMode();
         panel.SetActive(true);
+    }
+
+    public void RegisterIcon(int x, int y, Color32 color)  => _icons[new Vector2Int(x, y)] = color;
+    public void UnregisterIcon(int x, int y)               => _icons.Remove(new Vector2Int(x, y));
+    public void ClearIcons()                               => _icons.Clear();
+
+    public void RefreshTile(int tileX, int tileY)
+    {
+        if (_texture == null) return;
+        for (int sx = 0; sx < PixelsPerTile; sx++)
+        for (int sy = 0; sy < PixelsPerTile; sy++)
+        {
+            int px = tileX * PixelsPerTile + sx;
+            int py = tileY * PixelsPerTile + sy;
+            _texture.SetPixel(px, py, GetMinimapPixelSub(px, py));
+        }
+        _texture.Apply();
     }
 
     // ── Unity ─────────────────────────────────────────────────────────────────
@@ -206,6 +224,11 @@ public class MinimapView : MonoBehaviour
     {
         int tx = Mathf.Min(px / PixelsPerTile, _grid.Width  - 1);
         int ty = Mathf.Min(py / PixelsPerTile, _grid.Height - 1);
+
+        // Icons are always visible regardless of fog
+        if (_icons.TryGetValue(new Vector2Int(tx, ty), out Color32 iconColor))
+            return iconColor;
+
         Color32 tile = _tileColors[_grid.GetTileType(tx, ty)];
 
         if (_fog == null) return tile;

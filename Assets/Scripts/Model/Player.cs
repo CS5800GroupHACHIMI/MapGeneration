@@ -10,10 +10,11 @@ namespace Model
         public int   MaxHealth { get; private set; } = 100;
         public int   Health    { get; private set; } = 100;
         public bool  IsDead    => Health <= 0;
+        public bool  HasKey    { get; private set; }
 
         public event Action<int, int> OnMoved;
         public event Action<int, int> OnTeleported;
-        public event Action<int>      OnHealthChanged; // current HP
+        public event Action<int>      OnHealthChanged;
         public event Action           OnDied;
 
         public Player() { }
@@ -40,9 +41,22 @@ namespace Model
             if (Health <= 0) OnDied?.Invoke();
         }
 
+        public void Heal(int amount)
+        {
+            if (IsDead) return;
+            Health = Math.Min(MaxHealth, Health + amount);
+            OnHealthChanged?.Invoke(Health);
+        }
+
+        public void PickupKey()
+        {
+            HasKey = true;
+        }
+
         public void ResetHealth()
         {
             Health = MaxHealth;
+            HasKey = false;
             OnHealthChanged?.Invoke(Health);
         }
     }

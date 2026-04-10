@@ -12,9 +12,6 @@ public class PlayerController : ITickable
     private readonly PlayerView    _view;
     private readonly MapTraversal  _traversal;
 
-    private float _damageAccumulator;
-    private const float DamagePerSecond = 10f;
-
     public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view, MapTraversal traversal)
     {
         _player    = player;
@@ -27,24 +24,6 @@ public class PlayerController : ITickable
 
     public void Tick()
     {
-        // ── Tile damage (Path = purple = 10 DPS) ─────────────────────────────
-        if (!_player.IsDead &&
-            _grid.InBounds(_player.X, _player.Y) &&
-            _grid.GetTileType(_player.X, _player.Y) == TileType.Path)
-        {
-            _damageAccumulator += DamagePerSecond * Time.deltaTime;
-            if (_damageAccumulator >= 1f)
-            {
-                int dmg = (int)_damageAccumulator;
-                _damageAccumulator -= dmg;
-                _player.TakeDamage(dmg);
-            }
-        }
-        else
-        {
-            _damageAccumulator = 0f;
-        }
-
         // ── Movement ─────────────────────────────────────────────────────────
         if (_player.IsDead) return;
         if (_traversal.IsAutoWalking) return;

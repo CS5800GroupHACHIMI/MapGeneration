@@ -23,6 +23,7 @@ public class MapGeneratorRunner : MonoBehaviour
     private MapTraversal     _traversal;
     private FogOfWar         _fog;
     private ExitDoor         _exitDoor;
+    private RoomManager      _roomManager;
 
     private int _level = 1;
 
@@ -36,17 +37,19 @@ public class MapGeneratorRunner : MonoBehaviour
         Player           player,
         MapTraversal     traversal,
         FogOfWar         fog,
-        ExitDoor         exitDoor)
+        ExitDoor         exitDoor,
+        RoomManager     roomManager)
     {
-        _config    = config;
-        _grid      = grid;
-        _boardView = boardView;
-        _minimap   = minimap;
-        _generator = generator;
-        _player    = player;
-        _traversal = traversal;
-        _fog       = fog;
-        _exitDoor  = exitDoor;
+        _config      = config;
+        _grid        = grid;
+        _boardView   = boardView;
+        _minimap     = minimap;
+        _generator   = generator;
+        _player      = player;
+        _traversal   = traversal;
+        _fog         = fog;
+        _exitDoor    = exitDoor;
+        _roomManager = roomManager;
 
         _exitDoor.OnPlayerReachedExit += NextLevel;
         _player.OnDied += OnPlayerDied;
@@ -67,6 +70,8 @@ public class MapGeneratorRunner : MonoBehaviour
     public void Run()
     {
         _fog.Clear();
+        _roomManager.Clear();
+        _minimap.ClearIcons();
 
         if (_config.randomSeed)
             _config.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
@@ -96,6 +101,8 @@ public class MapGeneratorRunner : MonoBehaviour
 
         _fog.Initialize();
         _exitDoor.PlaceAtFarthestRoom(start);
+        _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
+        _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY);
         _minimap.Rebuild();
     }
 
@@ -207,6 +214,8 @@ public class MapGeneratorRunner : MonoBehaviour
         _player.TeleportTo(start.x, start.y);
         _fog.Initialize();
         _exitDoor.PlaceAtFarthestRoom(start);
+        _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
+        _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY);
         _minimap.Rebuild();
 
         // ── Smooth zoom back to player ──
@@ -302,6 +311,16 @@ public class MapGeneratorRunner : MonoBehaviour
             // Reset
             _labelStyle.fontSize = 18;
             _labelStyle.alignment = TextAnchor.MiddleLeft;
+
+            // ── Key indicator ────────────────────────────────────────────────────
+            string keyText  = _player.HasKey ? "KEY  [READY]" : "KEY  [NEEDED]";
+            Color  keyColor = _player.HasKey ? Color.green : new Color(1f, 0.6f, 0.2f);
+            _labelStyle.fontSize  = 13;
+            _labelStyle.alignment = TextAnchor.MiddleLeft;
+            _labelStyle.normal.textColor = keyColor;
+            GUI.Label(new Rect(10, Screen.height - 58, 200, 22), keyText, _labelStyle);
+            _labelStyle.fontSize  = 18;
+            _labelStyle.normal.textColor = Color.white;
         }
     }
 

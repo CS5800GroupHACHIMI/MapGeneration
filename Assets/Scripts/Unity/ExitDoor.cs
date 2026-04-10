@@ -26,6 +26,8 @@ public class ExitDoor : MonoBehaviour
     private bool _active;
 
     public event Action OnPlayerReachedExit;
+    public int ExitX => _exitX;
+    public int ExitY => _exitY;
 
     [Inject]
     public void Construct(MapGrid grid, Player player, Tilemap tilemap)
@@ -53,6 +55,27 @@ public class ExitDoor : MonoBehaviour
         int startRoom = FindNearestRoom(rooms, playerStart);
         int farRoom   = FindFarthestRoom(adj, startRoom, rooms.Count);
 
+        // Fallback: BFS couldn't reach any other room (disconnected chunk graph).
+        // Pick the room with the greatest Euclidean distance from start instead.
+        if (farRoom == -1)
+        {
+            float maxDist = -1f;
+            for (int i = 0; i < rooms.Count; i++)
+            {
+                if (i == startRoom) continue;
+                float d = Vector2Int.Distance(rooms[i].center, playerStart);
+                if (d > maxDist) { maxDist = d; farRoom = i; }
+            }
+        }
+
+        // Truly only one room in the entire map — cannot place exit
+        if (farRoom == -1)
+        {
+            _active = false;
+            if (_spriteRenderer != null) _spriteRenderer.enabled = false;
+            return;
+        }
+
         _exitX = rooms[farRoom].center.x;
         _exitY = rooms[farRoom].center.y;
 
@@ -68,7 +91,7 @@ public class ExitDoor : MonoBehaviour
     private void OnPlayerMoved(int x, int y)
     {
         if (!_active) return;
-        if (x == _exitX && y == _exitY)
+        if (x == _exitX && y == _exitY && _player.HasKey)
         {
             _active = false;
             OnPlayerReachedExit?.Invoke();
@@ -141,22 +164,35 @@ public class ExitDoor : MonoBehaviour
         for (int cx = 0; cx < cols; cx++)
         for (int cy = 0; cy < rows; cy++)
         {
-            var tiles = new List<(int x, int y)>();
-            for (int x = cx * ChunkW; x < (cx + 1) * ChunkW && x < _grid.Width; x++)
-            for (int y = cy * ChunkH; y < (cy + 1) * ChunkH && y < _grid.Height; y++)
+            int x0 = cx * ChunkW, y0 = cy * ChunkH;
+            int x1 = Mathf.Min(x0 + ChunkW, _grid.Width);
+            int y1 = Mathf.Min(y0 + ChunkH, _grid.Height);
+
+            var floorSet = new HashSet<(int, int)>();
+            for (int x = x0; x < x1; x++)
+            for (int y = y0; y < y1; y++)
+                if (_grid.GetTileType(x, y) == TileType.Floor)
+                    floorSet.Add((x, y));
+
+            if (floorSet.Count == 0) continue;
+
+            var component = LargestComponent(floorSet);
+
+            int minX = int.MaxValue, maxX = int.MinValue;
+            int minY = int.MaxValue, maxY = int.MinValue;
+            foreach (var (x, y) in component)
             {
-                var t = _grid.GetTileType(x, y);
-                if (t != TileType.Wall && t != TileType.Air)
-                    tiles.Add((x, y));
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
             }
-            if (tiles.Count < 6) continue;
+            if (maxX - minX < 3 || maxY - minY < 3) continue;
 
             int sumX = 0, sumY = 0;
-            foreach (var (x, y) in tiles) { sumX += x; sumY += y; }
-            int ccx = sumX / tiles.Count, ccy = sumY / tiles.Count;
+            foreach (var (x, y) in component) { sumX += x; sumY += y; }
+            int ccx = sumX / component.Count, ccy = sumY / component.Count;
             float minD = float.MaxValue;
-            var best = new Vector2Int(tiles[0].x, tiles[0].y);
-            foreach (var (x, y) in tiles)
+            var best = new Vector2Int(component[0].Item1, component[0].Item2);
+            foreach (var (x, y) in component)
             {
                 float d = Mathf.Abs(x - ccx) + Mathf.Abs(y - ccy);
                 if (d < minD) { minD = d; best = new Vector2Int(x, y); }
@@ -205,25 +241,69 @@ public class ExitDoor : MonoBehaviour
         return best;
     }
 
-    /// <summary>BFS from start room, return the room with maximum hop distance.</summary>
+    /// <summary>
+    /// BFS from start room. Returns the room with maximum hop distance that is
+    /// NOT the start room itself. Returns -1 if no other room is reachable.
+    /// </summary>
     private int FindFarthestRoom(Dictionary<int, List<int>> adj, int start, int count)
     {
-        var visited = new HashSet<int> { start };
-        var queue   = new Queue<int>();
+        var dist  = new Dictionary<int, int> { [start] = 0 };
+        var queue = new Queue<int>();
         queue.Enqueue(start);
-        int farthest = start;
+
+        int farthest = -1;
+        int maxDist  = -1;
 
         while (queue.Count > 0)
         {
             int cur = queue.Dequeue();
-            farthest = cur;
+            int d   = dist[cur];
+
+            if (cur != start && d > maxDist)
+            {
+                maxDist  = d;
+                farthest = cur;
+            }
+
             foreach (int nb in adj[cur])
             {
-                if (visited.Add(nb))
+                if (!dist.ContainsKey(nb))
+                {
+                    dist[nb] = d + 1;
                     queue.Enqueue(nb);
+                }
             }
         }
-        return farthest;
+        return farthest; // -1 if start is the only reachable room
+    }
+
+    private static List<(int, int)> LargestComponent(HashSet<(int, int)> tiles)
+    {
+        var visited = new HashSet<(int, int)>();
+        var best    = new List<(int, int)>();
+
+        foreach (var start in tiles)
+        {
+            if (!visited.Add(start)) continue;
+
+            var comp  = new List<(int, int)>();
+            var queue = new Queue<(int, int)>();
+            queue.Enqueue(start);
+            comp.Add(start);
+
+            while (queue.Count > 0)
+            {
+                var (x, y) = queue.Dequeue();
+                foreach (var nb in new[] { (x+1,y),(x-1,y),(x,y+1),(x,y-1) })
+                {
+                    if (tiles.Contains(nb) && visited.Add(nb))
+                    { comp.Add(nb); queue.Enqueue(nb); }
+                }
+            }
+
+            if (comp.Count > best.Count) best = comp;
+        }
+        return best;
     }
 
     private void OnDestroy()
