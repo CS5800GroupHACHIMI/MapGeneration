@@ -21,6 +21,10 @@ public class MapGeneratorRunner : MonoBehaviour
     private IMapGenerator    _generator;
     private Player           _player;
     private MapTraversal     _traversal;
+    private FogOfWar         _fog;
+    private ExitDoor         _exitDoor;
+
+    private int _level = 1;
 
     [Inject]
     public void Construct(
@@ -30,7 +34,9 @@ public class MapGeneratorRunner : MonoBehaviour
         MinimapView      minimap,
         IMapGenerator    generator,
         Player           player,
-        MapTraversal     traversal)
+        MapTraversal     traversal,
+        FogOfWar         fog,
+        ExitDoor         exitDoor)
     {
         _config    = config;
         _grid      = grid;
@@ -39,12 +45,29 @@ public class MapGeneratorRunner : MonoBehaviour
         _generator = generator;
         _player    = player;
         _traversal = traversal;
+        _fog       = fog;
+        _exitDoor  = exitDoor;
+
+        _exitDoor.OnPlayerReachedExit += NextLevel;
+        _player.OnDied += OnPlayerDied;
+    }
+
+    private void OnPlayerDied()
+    {
+        // Restart current level (same seed)
+        _config.randomSeed = false;
+        _traversal.Stop();
+        _player.ResetHealth();
+        Run();
+        _config.randomSeed = true;
     }
 
     private void Start() => Run();
 
     public void Run()
     {
+        _fog.Clear();
+
         if (_config.randomSeed)
             _config.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
 
@@ -52,6 +75,14 @@ public class MapGeneratorRunner : MonoBehaviour
             RunAnimated();
         else
             RunImmediate();
+    }
+
+    private void NextLevel()
+    {
+        _level++;
+        _traversal.Stop();
+        _player.ResetHealth();
+        Run();
     }
 
     private void RunImmediate()
@@ -63,6 +94,8 @@ public class MapGeneratorRunner : MonoBehaviour
         var start = _generator.GetStartPosition(_grid);
         _player.TeleportTo(start.x, start.y);
 
+        _fog.Initialize();
+        _exitDoor.PlaceAtFarthestRoom(start);
         _minimap.Rebuild();
     }
 
@@ -172,6 +205,8 @@ public class MapGeneratorRunner : MonoBehaviour
         // ── Spawn player ──
         var start = _generator.GetStartPosition(_grid);
         _player.TeleportTo(start.x, start.y);
+        _fog.Initialize();
+        _exitDoor.PlaceAtFarthestRoom(start);
         _minimap.Rebuild();
 
         // ── Smooth zoom back to player ──
@@ -228,7 +263,7 @@ public class MapGeneratorRunner : MonoBehaviour
         string algo   = _traversal.Algorithm.ToString();
         string status = _traversal.IsAutoWalking ? "  Running..." : "";
         GUI.Label(new Rect(rect.x, rect.y + 2, w, 28),
-            $"Algorithm: {algo}{status}", _labelStyle);
+            $"Level {_level}  |  {algo}{status}", _labelStyle);
 
         _labelStyle.fontSize  = 13;
         _labelStyle.fontStyle = FontStyle.Normal;
@@ -240,6 +275,34 @@ public class MapGeneratorRunner : MonoBehaviour
         _labelStyle.fontSize  = 18;
         _labelStyle.fontStyle = FontStyle.Bold;
         _labelStyle.normal.textColor = Color.white;
+
+        // ── HP Bar (bottom-left) ─────────────────────────────────────────────
+        if (_player != null)
+        {
+            float barW = 200, barH = 20, barX = 10, barY = Screen.height - 35;
+            float hpRatio = (float)_player.Health / _player.MaxHealth;
+
+            // Background
+            GUI.DrawTexture(new Rect(barX, barY, barW, barH), Texture2D.whiteTexture,
+                ScaleMode.StretchToFill, false, 0, new Color(0.2f, 0.2f, 0.2f, 0.8f), 0, 0);
+
+            // HP fill
+            Color hpColor = hpRatio > 0.5f ? Color.green :
+                            hpRatio > 0.25f ? Color.yellow : Color.red;
+            GUI.DrawTexture(new Rect(barX, barY, barW * hpRatio, barH), Texture2D.whiteTexture,
+                ScaleMode.StretchToFill, false, 0, hpColor, 0, 0);
+
+            // Text
+            _labelStyle.fontSize = 14;
+            _labelStyle.alignment = TextAnchor.MiddleCenter;
+            _labelStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(barX, barY, barW, barH),
+                $"HP {_player.Health}/{_player.MaxHealth}", _labelStyle);
+
+            // Reset
+            _labelStyle.fontSize = 18;
+            _labelStyle.alignment = TextAnchor.MiddleLeft;
+        }
     }
 
     private static Texture2D MakeTex(int w, int h, Color col)

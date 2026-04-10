@@ -12,17 +12,26 @@ public class MapTraversal : ITickable
     public bool IsAutoWalking { get; private set; }
     public TraversalAlgorithm Algorithm { get; set; } = TraversalAlgorithm.BFS;
 
-    private readonly MapGrid _grid;
-    private readonly Player  _player;
+    private readonly MapGrid  _grid;
+    private readonly Player   _player;
+    private readonly FogOfWar _fog;
 
-    private Queue<(int x, int y)> _path;
-    private float _moveTimer;
+    // State machine
+    private List<Room>  _rooms;
+    private List<int>   _roomSequence;   // BFS/DFS order (DFS includes backtracks)
+    private int         _seqIndex;       // current index in _roomSequence
+    private Queue<(int x, int y)> _path; // current tile-level walk segment
+    private float       _moveTimer;
     private const float MoveInterval = 0.1f;
 
-    public MapTraversal(MapGrid grid, Player player)
+    private const int ChunkW = 10;
+    private const int ChunkH = 8;
+
+    public MapTraversal(MapGrid grid, Player player, FogOfWar fog)
     {
         _grid   = grid;
         _player = player;
+        _fog    = fog;
     }
 
     public void Tick()
@@ -44,44 +53,50 @@ public class MapTraversal : ITickable
             }
         }
 
-        if (!IsAutoWalking || _path == null || _path.Count == 0)
-        {
-            if (IsAutoWalking)
-            {
-                IsAutoWalking = false;
-                Debug.Log("[MapTraversal] Traversal complete");
-            }
-            return;
-        }
+        if (!IsAutoWalking) return;
 
         _moveTimer -= Time.deltaTime;
         if (_moveTimer > 0f) return;
 
-        var (x, y) = _path.Dequeue();
-        _player.MoveTo(x, y);
-        _moveTimer = MoveInterval;
+        // If current path segment is done, decide next action
+        if (_path == null || _path.Count == 0)
+        {
+            if (!AdvanceState())
+            {
+                IsAutoWalking = false;
+                Debug.Log("[MapTraversal] Traversal complete");
+                return;
+            }
+        }
+
+        if (_path != null && _path.Count > 0)
+        {
+            var (x, y) = _path.Dequeue();
+            _player.MoveTo(x, y);
+            _moveTimer = MoveInterval;
+        }
     }
 
     // ─── Public API ──────────────────────────────────────────────────────────
 
     public void Begin()
     {
-        var rooms = DetectRooms();
-        if (rooms.Count == 0) { Debug.LogWarning("[MapTraversal] No rooms found"); return; }
+        _rooms = DetectRooms();
+        if (_rooms.Count == 0) { Debug.LogWarning("[MapTraversal] No rooms found"); return; }
 
-        var adj       = BuildAdjacency(rooms);
-        int startRoom = FindPlayerRoom(rooms);
+        var adj      = BuildAdjacency(_rooms);
+        int startIdx = FindPlayerRoom(_rooms);
 
-        // Get the room visit sequence (DFS includes backtracks)
-        List<int> sequence = Algorithm == TraversalAlgorithm.BFS
-            ? BFSSequence(adj, startRoom)
-            : DFSSequence(adj, startRoom);
+        _roomSequence = Algorithm == TraversalAlgorithm.BFS
+            ? BFSSequence(adj, startIdx)
+            : DFSSequence(adj, startIdx);
 
-        _path = BuildPathFromSequence(rooms, sequence);
-        IsAutoWalking = true;
+        _seqIndex = 0;
+        _path     = new Queue<(int, int)>();
         _moveTimer = 0f;
+        IsAutoWalking = true;
 
-        Debug.Log($"[MapTraversal] {Algorithm}: {rooms.Count} rooms, {_path.Count} steps");
+        Debug.Log($"[MapTraversal] {Algorithm}: {_rooms.Count} rooms");
     }
 
     public void Stop()
@@ -91,7 +106,106 @@ public class MapTraversal : ITickable
         Debug.Log("[MapTraversal] Stopped");
     }
 
-    // ─── Room Detection (chunk-based, 10×8) ─────────────────────────────────
+    // ─── State Machine ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Decides what to do next. Returns false when traversal is complete.
+    ///
+    /// Logic:
+    ///   1. If current room has unrevealed fog → walk to nearest unrevealed tile
+    ///   2. If current room is fully revealed → advance to next room in sequence
+    ///   3. If no more rooms → done
+    /// </summary>
+    private bool AdvanceState()
+    {
+        if (_roomSequence == null || _rooms == null) return false;
+
+        // Check if current room still has fog
+        if (_seqIndex < _roomSequence.Count)
+        {
+            var room = _rooms[_roomSequence[_seqIndex]];
+
+            if (!IsRoomFullyRevealed(room))
+            {
+                // Walk to nearest unrevealed floor tile in this room
+                var target = FindNearestUnrevealed(room);
+                if (target.HasValue)
+                {
+                    var segment = FindPath(_player.X, _player.Y, target.Value.x, target.Value.y);
+                    _path = ToQueue(segment, 1);
+                    return true;
+                }
+            }
+
+            // Room fully revealed — move to next in sequence
+            _seqIndex++;
+        }
+
+        // Find next unvisited room in sequence
+        while (_seqIndex < _roomSequence.Count)
+        {
+            var nextRoom = _rooms[_roomSequence[_seqIndex]];
+            var segment  = FindPath(_player.X, _player.Y, nextRoom.center.x, nextRoom.center.y);
+            _path = ToQueue(segment, 1);
+
+            if (_path.Count > 0)
+                return true;
+
+            // Already at this room's center — will check fog on next tick
+            if (!IsRoomFullyRevealed(nextRoom))
+                return true;
+
+            _seqIndex++;
+        }
+
+        return false; // all rooms done
+    }
+
+    private bool IsRoomFullyRevealed(Room room)
+    {
+        int x0 = room.chunkX * ChunkW;
+        int y0 = room.chunkY * ChunkH;
+
+        for (int x = x0; x < x0 + ChunkW && x < _grid.Width; x++)
+        for (int y = y0; y < y0 + ChunkH && y < _grid.Height; y++)
+        {
+            var t = _grid.GetTileType(x, y);
+            if (t == TileType.Wall || t == TileType.Air) continue;
+            if (!_fog.IsRevealed(x, y)) return false;
+        }
+        return true;
+    }
+
+    private (int x, int y)? FindNearestUnrevealed(Room room)
+    {
+        int x0 = room.chunkX * ChunkW;
+        int y0 = room.chunkY * ChunkH;
+
+        float minDist = float.MaxValue;
+        (int x, int y)? best = null;
+
+        for (int x = x0; x < x0 + ChunkW && x < _grid.Width; x++)
+        for (int y = y0; y < y0 + ChunkH && y < _grid.Height; y++)
+        {
+            var t = _grid.GetTileType(x, y);
+            if (t == TileType.Wall || t == TileType.Air) continue;
+            if (_fog.IsRevealed(x, y)) continue;
+
+            float d = Mathf.Abs(x - _player.X) + Mathf.Abs(y - _player.Y);
+            if (d < minDist) { minDist = d; best = (x, y); }
+        }
+        return best;
+    }
+
+    private static Queue<(int, int)> ToQueue(List<(int x, int y)> path, int skipFirst)
+    {
+        var q = new Queue<(int, int)>();
+        for (int i = skipFirst; i < path.Count; i++)
+            q.Enqueue(path[i]);
+        return q;
+    }
+
+    // ─── Room Detection ──────────────────────────────────────────────────────
 
     private struct Room
     {
@@ -101,17 +215,16 @@ public class MapTraversal : ITickable
 
     private List<Room> DetectRooms()
     {
-        const int chunkW = 10, chunkH = 8;
-        int cols = Mathf.Max(1, _grid.Width  / chunkW);
-        int rows = Mathf.Max(1, _grid.Height / chunkH);
+        int cols = Mathf.Max(1, _grid.Width  / ChunkW);
+        int rows = Mathf.Max(1, _grid.Height / ChunkH);
         var rooms = new List<Room>();
 
         for (int cx = 0; cx < cols; cx++)
         for (int cy = 0; cy < rows; cy++)
         {
             var tiles = new List<(int x, int y)>();
-            for (int x = cx * chunkW; x < (cx + 1) * chunkW && x < _grid.Width; x++)
-            for (int y = cy * chunkH; y < (cy + 1) * chunkH && y < _grid.Height; y++)
+            for (int x = cx * ChunkW; x < (cx + 1) * ChunkW && x < _grid.Width; x++)
+            for (int y = cy * ChunkH; y < (cy + 1) * ChunkH && y < _grid.Height; y++)
             {
                 var t = _grid.GetTileType(x, y);
                 if (t != TileType.Wall && t != TileType.Air)
@@ -191,13 +304,8 @@ public class MapTraversal : ITickable
         return adj;
     }
 
-    // ─── BFS / DFS Room Sequences ────────────────────────────────────────────
+    // ─── BFS / DFS ───────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// BFS: returns room visit order [R0, R1, R2, R3].
-    /// Player walks between consecutive rooms using tile-level shortest path.
-    /// May pass through already-visited rooms — that's inherent to BFS on a physical map.
-    /// </summary>
     private static List<int> BFSSequence(Dictionary<int, List<int>> adj, int start)
     {
         var visited = new HashSet<int> { start };
@@ -220,12 +328,6 @@ public class MapTraversal : ITickable
         return order;
     }
 
-    /// <summary>
-    /// DFS: returns room visit order WITH backtracks.
-    /// [R0, R1, R3, R1, R0, R2, R0]
-    ///              ↑backtrack  ↑backtrack
-    /// Player only ever walks between adjacent rooms — no shortcuts.
-    /// </summary>
     private static List<int> DFSSequence(Dictionary<int, List<int>> adj, int start)
     {
         var visited  = new HashSet<int>();
@@ -240,40 +342,15 @@ public class MapTraversal : ITickable
     {
         visited.Add(cur);
         seq.Add(cur);
-
         foreach (int nb in adj[cur])
         {
             if (visited.Contains(nb)) continue;
             DFSHelper(adj, nb, visited, seq);
-            seq.Add(cur); // backtrack to current room
+            seq.Add(cur); // backtrack
         }
     }
 
-    // ─── Build Tile Path from Room Sequence ─────────────────────────────────
-
-    private Queue<(int x, int y)> BuildPathFromSequence(
-        List<Room> rooms, List<int> sequence)
-    {
-        var fullPath = new Queue<(int x, int y)>();
-        int curX = _player.X, curY = _player.Y;
-
-        foreach (int ri in sequence)
-        {
-            var target = rooms[ri].center;
-            var segment = FindPath(curX, curY, target.x, target.y);
-
-            // Skip first tile (current position)
-            for (int j = 1; j < segment.Count; j++)
-                fullPath.Enqueue(segment[j]);
-
-            curX = target.x;
-            curY = target.y;
-        }
-
-        return fullPath;
-    }
-
-    // ─── Tile-level Pathfinding (BFS on Floor grid) ──────────────────────────
+    // ─── Tile Pathfinding ────────────────────────────────────────────────────
 
     private List<(int x, int y)> FindPath(int fromX, int fromY, int toX, int toY)
     {
@@ -292,7 +369,6 @@ public class MapTraversal : ITickable
         while (queue.Count > 0)
         {
             var (cx, cy) = queue.Dequeue();
-
             if (cx == toX && cy == toY)
             {
                 var path = new List<(int, int)>();
@@ -312,7 +388,6 @@ public class MapTraversal : ITickable
                 if (!_grid.InBounds(nx, ny)) continue;
                 if (_grid.GetTileType(nx, ny) == TileType.Wall) continue;
                 if (parent.ContainsKey((nx, ny))) continue;
-
                 parent[(nx, ny)] = (cx, cy);
                 queue.Enqueue((nx, ny));
             }
