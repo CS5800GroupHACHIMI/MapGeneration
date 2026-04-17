@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Model
 {
@@ -6,10 +6,17 @@ namespace Model
     {
         public int X { get; private set; }
         public int Y { get; private set; }
-        
+
+        public int   MaxHealth { get; private set; } = 100;
+        public int   Health    { get; private set; } = 100;
+        public bool  IsDead    => Health <= 0;
+        public bool  HasKey    { get; private set; }
+
         public event Action<int, int> OnMoved;
         public event Action<int, int> OnTeleported;
-        
+        public event Action<int>      OnHealthChanged;
+        public event Action           OnDied;
+
         public Player() { }
 
         public void MoveTo(int x, int y)
@@ -24,6 +31,33 @@ namespace Model
             X = x;
             Y = y;
             OnTeleported?.Invoke(x, y);
+        }
+
+        public void TakeDamage(int amount)
+        {
+            if (IsDead) return;
+            Health = Math.Max(0, Health - amount);
+            OnHealthChanged?.Invoke(Health);
+            if (Health <= 0) OnDied?.Invoke();
+        }
+
+        public void Heal(int amount)
+        {
+            if (IsDead) return;
+            Health = Math.Min(MaxHealth, Health + amount);
+            OnHealthChanged?.Invoke(Health);
+        }
+
+        public void PickupKey()
+        {
+            HasKey = true;
+        }
+
+        public void ResetHealth()
+        {
+            Health = MaxHealth;
+            HasKey = false;
+            OnHealthChanged?.Invoke(Health);
         }
     }
 }

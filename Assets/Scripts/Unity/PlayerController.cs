@@ -1,4 +1,4 @@
-﻿using Data;
+using Data;
 using Model;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -24,13 +24,14 @@ public class PlayerController : ITickable
 
     public void Tick()
     {
+        // ── Movement ─────────────────────────────────────────────────────────
+        if (_player.IsDead) return;
         if (_traversal.IsAutoWalking) return;
         if (_view.IsAnimating) return;
 
         var input = _input.Player.Move.ReadValue<Vector2>();
         if (input == Vector2.zero) return;
 
-        // Both axes read independently — holding A/D no longer blocks W/S.
         int dx = input.x >  0.5f ?  1 : input.x < -0.5f ? -1 : 0;
         int dy = input.y >  0.5f ?  1 : input.y < -0.5f ? -1 : 0;
 
@@ -41,7 +42,6 @@ public class PlayerController : ITickable
 
         if (dx != 0 && dy != 0)
         {
-            // Diagonal move: require both cardinal neighbours to be passable (no corner-cutting).
             int hx = _player.X + dx, hy = _player.Y;
             int vx = _player.X,      vy = _player.Y + dy;
             bool hOpen = _grid.InBounds(hx, hy) && _grid.GetTileType(hx, hy) != TileType.Wall;
@@ -49,9 +49,7 @@ public class PlayerController : ITickable
             bool dOpen = _grid.InBounds(nx, ny) && _grid.GetTileType(nx, ny) != TileType.Wall;
 
             if (hOpen && vOpen && dOpen)
-            {
-                // Full diagonal allowed — do nothing, nx/ny already set.
-            }
+            { }
             else if (hOpen)
                 { nx = hx; ny = hy; }
             else if (vOpen)
