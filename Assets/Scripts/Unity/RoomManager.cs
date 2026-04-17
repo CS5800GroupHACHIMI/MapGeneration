@@ -21,6 +21,10 @@ public class RoomManager : MonoBehaviour
     private readonly List<KeyItem>       _keys     = new();
     private readonly List<MonsterEntity> _monsters = new();
 
+    public IReadOnlyList<MonsterEntity> LiveMonsters => _monsters;
+    public IReadOnlyList<Chest>         ActiveChests => _chests;
+    public IReadOnlyList<KeyItem>       ActiveKeys   => _keys;
+
     [Inject]
     public void Construct(MapGrid grid, Player player, Tilemap tilemap, MinimapView minimap)
     {

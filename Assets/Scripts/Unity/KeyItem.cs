@@ -16,6 +16,10 @@ public class KeyItem : MonoBehaviour
     private int  _x, _y;
     private bool _active;
 
+    public int  TileX    => _x;
+    public int  TileY    => _y;
+    public bool IsActive => _active;
+
     public void Initialize(Player player, Tilemap tilemap, MinimapView minimap)
     {
         _player  = player;

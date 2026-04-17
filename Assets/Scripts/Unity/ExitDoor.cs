@@ -26,8 +26,9 @@ public class ExitDoor : MonoBehaviour
     private bool _active;
 
     public event Action OnPlayerReachedExit;
-    public int ExitX => _exitX;
-    public int ExitY => _exitY;
+    public int  ExitX     => _exitX;
+    public int  ExitY     => _exitY;
+    public bool IsPlaced  => _active;
 
     [Inject]
     public void Construct(MapGrid grid, Player player, Tilemap tilemap)

@@ -14,6 +14,10 @@ public class MonsterEntity : MonoBehaviour
     private SpriteRenderer _sr;
     private int   _x, _y;
     private int   _chunkX, _chunkY;
+
+    public int  TileX   => _x;
+    public int  TileY   => _y;
+    public bool IsAlive => _sr != null && _sr.enabled;
     private float _damageAccumulator;
 
     private const float DamagePerSecond = 8f;
