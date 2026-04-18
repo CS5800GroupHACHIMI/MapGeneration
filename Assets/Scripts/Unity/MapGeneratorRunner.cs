@@ -23,7 +23,6 @@ public class MapGeneratorRunner : MonoBehaviour
     private Player           _player;
     private MapTraversal     _traversal;
     private FogOfWar         _fog;
-    // private ExitDoor         _exitDoor;
     private RoomManager      _roomManager;
     private GoalAI           _goalAI;
     private ItemFactories    _itemFactory;
@@ -45,7 +44,7 @@ public class MapGeneratorRunner : MonoBehaviour
         MapTraversal     traversal,
         FogOfWar         fog,
         GoalAI           goalAI,
-        // ExitDoor         exitDoor,
+        ExitDoor         exitDoor,
         RoomManager     roomManager,
         ItemFactories   itemFactories
         )
@@ -58,12 +57,12 @@ public class MapGeneratorRunner : MonoBehaviour
         _player      = player;
         _traversal   = traversal;
         _fog         = fog;
-        // _exitDoor    = exitDoor;
+        _exitDoor    = exitDoor;
         _roomManager = roomManager;
         _goalAI      = goalAI;
         _itemFactory = itemFactories;
 
-        // _exitDoor.OnPlayerReachedExit += NextLevel;
+        _exitDoor.OnPlayerReachedExit += NextLevel;
         _player.OnDied += OnPlayerDied;
     }
 
@@ -101,7 +100,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _fog.Clear();
         _roomManager.Clear();
         _minimap.ClearIcons();
-        DestoryExit();
+        // DestoryExit();
         _traversal.Reset();
 
         // Scale map size and target room count with level
@@ -189,8 +188,8 @@ public class MapGeneratorRunner : MonoBehaviour
 
             _fog.Initialize();
 
-            // _exitDoor.PlaceAtFarthestRoom(start);
-            CreateExit(start);
+            _exitDoor.PlaceAtFarthestRoom(start);
+            // CreateExit(start);
             if (_exitDoor.IsPlaced)
                 _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
             _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);
@@ -313,7 +312,8 @@ public class MapGeneratorRunner : MonoBehaviour
         _player.TeleportTo(start.x, start.y);
         _fog.Initialize();
         
-        CreateExit(start);
+        _exitDoor.PlaceAtFarthestRoom(start);
+        // CreateExit(start);
         
         _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
         _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);

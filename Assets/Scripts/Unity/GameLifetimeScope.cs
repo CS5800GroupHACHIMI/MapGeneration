@@ -45,7 +45,6 @@ public class GameLifetimeScope : LifetimeScope
         
         builder.RegisterInstance(chestView);
         builder.RegisterInstance(keyItemView);
-        builder.RegisterInstance(exitDoor);
         builder.RegisterInstance(monsterEntityView);
         builder.RegisterInstance(coinView);
         
@@ -63,6 +62,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(playerView);
         builder.RegisterComponent(minimapView);
         builder.RegisterComponent(fogOfWar);
+        builder.RegisterComponent(exitDoor);
         builder.RegisterComponent(roomManager);
 
         builder.RegisterEntryPoint<MapTraversal>().AsSelf();

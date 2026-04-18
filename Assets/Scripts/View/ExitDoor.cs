@@ -88,8 +88,8 @@ public class ExitDoor : MonoBehaviour
         
         _active = true;
 
-        // _player.OnMoved      -= OnPlayerMoved;
-        // _player.OnTeleported -= OnPlayerMoved;
+        _player.OnMoved      -= OnPlayerMoved;
+        _player.OnTeleported -= OnPlayerMoved;
         
         _player.OnMoved      += OnPlayerMoved;
         _player.OnTeleported += OnPlayerMoved;
