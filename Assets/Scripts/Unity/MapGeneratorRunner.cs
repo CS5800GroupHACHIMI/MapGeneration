@@ -406,7 +406,7 @@ public class MapGeneratorRunner : MonoBehaviour
         // ── HP Bar (bottom-left) ─────────────────────────────────────────────
         if (_player != null)
         {
-            float barW = 200, barH = 20, barX = 10, barY = Screen.height - 35;
+            float barW = 360, barH = 36, barX = 14, barY = Screen.height - 56;
             float hpRatio = (float)_player.Health / _player.MaxHealth;
 
             // Background
@@ -420,23 +420,24 @@ public class MapGeneratorRunner : MonoBehaviour
                 ScaleMode.StretchToFill, false, 0, hpColor, 0, 0);
 
             // Text
-            _labelStyle.fontSize = 14;
+            _labelStyle.fontSize  = 22;
+            _labelStyle.fontStyle = FontStyle.Bold;
             _labelStyle.alignment = TextAnchor.MiddleCenter;
             _labelStyle.normal.textColor = Color.white;
             GUI.Label(new Rect(barX, barY, barW, barH),
                 $"HP {_player.Health}/{_player.MaxHealth}", _labelStyle);
 
             // Reset
-            _labelStyle.fontSize = 18;
+            _labelStyle.fontSize  = 18;
             _labelStyle.alignment = TextAnchor.MiddleLeft;
 
             // ── Key indicator ────────────────────────────────────────────────────
             string keyText  = _player.HasKey ? "KEY  [READY]" : "KEY  [NEEDED]";
             Color  keyColor = _player.HasKey ? Color.green : new Color(1f, 0.6f, 0.2f);
-            _labelStyle.fontSize  = 13;
+            _labelStyle.fontSize  = 18;
             _labelStyle.alignment = TextAnchor.MiddleLeft;
             _labelStyle.normal.textColor = keyColor;
-            GUI.Label(new Rect(10, Screen.height - 58, 200, 22), keyText, _labelStyle);
+            GUI.Label(new Rect(14, Screen.height - 88, 360, 28), keyText, _labelStyle);
             _labelStyle.fontSize  = 18;
             _labelStyle.normal.textColor = Color.white;
         }

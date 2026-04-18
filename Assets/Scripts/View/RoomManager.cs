@@ -79,9 +79,11 @@ public class RoomManager : MonoBehaviour
         int total = available.Count;
         int idx   = 0;
 
-        // ── Key room: the room FARTHEST FROM SPAWN among those ≥ MinKeyExitDistance from exit.
-        //    Forces player to traverse across the map to find the key.
-        const int MinKeyExitDistance = 10;
+        // ── Key room: the room FARTHEST FROM SPAWN among those that are
+        //    ≥ MinKeyExitDistance away from the exit AND ≥ MinKeyStartDistance away from spawn.
+        //    Guarantees the key is in neither the spawn room nor the exit room.
+        const int MinKeyExitDistance  = 10;
+        const int MinKeyStartDistance = 8;
         int keyRoomPos  = -1;
         int maxDistance = -1;
         if (hasValidExit)
@@ -95,6 +97,8 @@ public class RoomManager : MonoBehaviour
 
                 int distFromSpawn = Mathf.Abs(room.center.x - startPos.x)
                                   + Mathf.Abs(room.center.y - startPos.y);
+                if (distFromSpawn < MinKeyStartDistance) continue;
+
                 if (distFromSpawn > maxDistance)
                 {
                     maxDistance = distFromSpawn;
@@ -109,18 +113,14 @@ public class RoomManager : MonoBehaviour
 
         if (keyRoomPos < 0)
         {
-            // No room far enough from exit — skip key placement.
+            // No room far enough from both spawn and exit — skip key placement.
             // Caller (MapGeneratorRunner) will detect empty ActiveKeys and retry.
             return;
         }
 
         {
-            var room = rooms[available[idx++]];
-            // var go   = new GameObject("KeyItem");
-            // go.transform.SetParent(transform, false);
-            // var key = go.AddComponent<KeyItem>();
-            // key.Initialize(_player, _tilemap, _minimap);
-            // key.Place(room.center.x, room.center.y);
+            // BUG FIX: use the selected keyRoomPos (farthest), not available[idx++].
+            var room = rooms[available[keyRoomPos]];
             var key = _itemFactory.CreateKey(room.center.x, room.center.y);
             _keys.Add(key);
             _minimap?.RegisterIcon(room.center.x, room.center.y, new Color32(255, 255, 80, 255));
