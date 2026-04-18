@@ -20,10 +20,12 @@ public class RoomManager : MonoBehaviour
     private readonly List<Chest>         _chests   = new();
     private readonly List<KeyItem>       _keys     = new();
     private readonly List<MonsterEntity> _monsters = new();
+    private readonly List<Coin>          _coins    = new();
 
     public IReadOnlyList<MonsterEntity> LiveMonsters => _monsters;
     public IReadOnlyList<Chest>         ActiveChests => _chests;
     public IReadOnlyList<KeyItem>       ActiveKeys   => _keys;
+    public IReadOnlyList<Coin>          ActiveCoins  => _coins;
 
     [Inject]
     public void Construct(MapGrid grid, Player player, Tilemap tilemap, MinimapView minimap)
@@ -154,40 +156,97 @@ public class RoomManager : MonoBehaviour
     /// </summary>
     private void ScatterPathHazards(int level, Vector2Int startPos, int exitX, int exitY)
     {
-        int hazardCount = LevelScaling.PathHazardCount(level);
-        if (hazardCount <= 0) return;
-
-        // Build exclusion set: start + exit + keys + chests (plus 1-tile radius for each)
+        // Build exclusion set: start + exit + keys + chests (plus small radius around each)
         var excluded = new HashSet<(int, int)>();
         AddExclusion(excluded, startPos.x, startPos.y, radius: 4);
         AddExclusion(excluded, exitX, exitY, radius: 2);
         foreach (var k in _keys)   AddExclusion(excluded, k.TileX, k.TileY, radius: 1);
         foreach (var c in _chests) AddExclusion(excluded, c.TileX, c.TileY, radius: 1);
 
-        // Collect eligible floor tiles
-        var candidates = new List<(int x, int y)>();
+        int hazardCount = LevelScaling.PathHazardCount(level);
+
+        // Phase 1 — scatter N new Path tiles on eligible Floor tiles
+        if (hazardCount > 0)
+        {
+            var candidates = new List<(int x, int y)>();
+            for (int x = 0; x < _grid.Width;  x++)
+            for (int y = 0; y < _grid.Height; y++)
+            {
+                if (_grid.GetTileType(x, y) != TileType.Floor) continue;
+                if (excluded.Contains((x, y))) continue;
+                candidates.Add((x, y));
+            }
+
+            // Shuffle & pick first N
+            for (int i = candidates.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+            }
+
+            int placed = Mathf.Min(hazardCount, candidates.Count);
+            for (int i = 0; i < placed; i++)
+            {
+                var (x, y) = candidates[i];
+                _grid.Set(x, y, TileType.Path);
+            }
+        }
+
+        // Phase 2 — place coins on ALL Path tiles (scattered + pre-existing corridors)
+        //          BFS each connected component, drop a coin every 3 tiles.
+        PlaceCoinsOnAllPaths(excluded);
+    }
+
+    /// <summary>
+    /// Scans for every connected Path component and scatters coins along it
+    /// at a 1-per-3 ratio. Handles both the scattered in-room hazards and
+    /// the long path corridors created by generators like DelaunayKruskal.
+    /// </summary>
+    private void PlaceCoinsOnAllPaths(HashSet<(int, int)> excluded)
+    {
+        int[] cdx = { 1, -1, 0, 0 };
+        int[] cdy = { 0, 0, 1, -1 };
+
+        var visited = new HashSet<(int, int)>();
         for (int x = 0; x < _grid.Width;  x++)
         for (int y = 0; y < _grid.Height; y++)
         {
-            if (_grid.GetTileType(x, y) != TileType.Floor) continue;
-            if (excluded.Contains((x, y))) continue;
-            candidates.Add((x, y));
-        }
+            if (_grid.GetTileType(x, y) != TileType.Path) continue;
+            if (!visited.Add((x, y))) continue;
 
-        if (candidates.Count == 0) return;
+            // BFS this connected Path component
+            var queue     = new Queue<(int, int)>();
+            var component = new List<(int, int)>();
+            queue.Enqueue((x, y));
+            component.Add((x, y));
 
-        // Shuffle & pick first N
-        for (int i = candidates.Count - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
-        }
+            while (queue.Count > 0)
+            {
+                var (cx, cy) = queue.Dequeue();
+                for (int d = 0; d < 4; d++)
+                {
+                    int nx = cx + cdx[d], ny = cy + cdy[d];
+                    if (!_grid.InBounds(nx, ny)) continue;
+                    if (_grid.GetTileType(nx, ny) != TileType.Path) continue;
+                    if (!visited.Add((nx, ny))) continue;
+                    queue.Enqueue((nx, ny));
+                    component.Add((nx, ny));
+                }
+            }
 
-        int placed = Mathf.Min(hazardCount, candidates.Count);
-        for (int i = 0; i < placed; i++)
-        {
-            var (x, y) = candidates[i];
-            _grid.Set(x, y, TileType.Path);
+            // Drop a coin every 3 tiles along this component (indices 0, 3, 6, ...)
+            for (int i = 0; i < component.Count; i += 3)
+            {
+                var (cx, cy) = component[i];
+                if (excluded.Contains((cx, cy))) continue;
+
+                var go   = new GameObject("Coin");
+                go.transform.SetParent(transform, false);
+                var coin = go.AddComponent<Coin>();
+                coin.Initialize(_player, _tilemap);
+                coin.Place(cx, cy);
+                _coins.Add(coin);
+            }
         }
     }
 
@@ -203,9 +262,11 @@ public class RoomManager : MonoBehaviour
         foreach (var c in _chests)   if (c != null) { c.Remove(); Destroy(c.gameObject); }
         foreach (var k in _keys)     if (k != null) { k.Remove(); Destroy(k.gameObject); }
         foreach (var m in _monsters) if (m != null) Destroy(m.gameObject);
+        foreach (var co in _coins)   if (co != null) { co.Remove(); Destroy(co.gameObject); }
         _chests.Clear();
         _keys.Clear();
         _monsters.Clear();
+        _coins.Clear();
     }
 
     // ─── Room detection ───────────────────────────────────────────────────────

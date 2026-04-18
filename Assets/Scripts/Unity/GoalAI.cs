@@ -33,6 +33,12 @@ public class GoalAI : ITickable
     private Queue<(int x, int y)> _path;
     private float                 _moveTimer;
     private float[,]              _dangerMap;
+    private HashSet<(int, int)>   _coinTiles;   // rebuilt at plan time
+
+    // Risk/reward tuning constants
+    private const float PathPenalty       = 10f; // base cost for stepping on a Path (damaging) tile
+    private const float CoinAttraction    = 10f; // negative cost bonus for tiles with a coin
+    private const int   CoinPickupRange   = 8;   // target revealed coins within this tile distance
 
     private const float MoveInterval = 0.12f;
 
@@ -126,21 +132,36 @@ public class GoalAI : ITickable
             if (key.HasValue && TryPathTo(key.Value, "Key")) return true;
         }
 
-        // 2. Low HP → nearest chest
-        if (_player.Health * 2 < _player.MaxHealth)
+        // 2. Any HP loss → go grab a chest (chests only heal 5, but every bit counts)
+        if (_player.Health < _player.MaxHealth)
         {
             var chest = FindNearestActive(_roomManager.ActiveChests);
             if (chest.HasValue && TryPathTo(chest.Value, "Chest (Heal)")) return true;
         }
 
-        // 3. Has key → exit (must be revealed in FairMode)
+        // 3. Has key → exit.
+        //    Defer the exit when above survival threshold AND still exploring.
+        //    Below HP 30% we're in survival mode — go straight to exit.
         if (_player.HasKey && _exitDoor.IsPlaced &&
             (!FairMode || _fog.IsRevealed(_exitDoor.ExitX, _exitDoor.ExitY)))
         {
-            if (TryPathTo((_exitDoor.ExitX, _exitDoor.ExitY), "Exit")) return true;
+            bool aboveSurvival = _player.Health * 10 >= _player.MaxHealth * 3;  // HP ≥ 30%
+            bool deferExit     = FairMode && aboveSurvival && FindFrontierTile().HasValue;
+
+            if (!deferExit &&
+                TryPathTo((_exitDoor.ExitX, _exitDoor.ExitY), "Exit"))
+                return true;
         }
 
-        // 4. Fair mode fallback: explore — path to nearest revealed frontier tile
+        // 4. Opportunistic coin grab — active whenever above survival threshold (≥ 30% HP).
+        //    Below 30%, coins are ignored entirely (matches TileCost behaviour).
+        if (_player.Health * 10 >= _player.MaxHealth * 3)
+        {
+            var nearCoin = FindNearbyRevealedCoin();
+            if (nearCoin.HasValue && TryPathTo(nearCoin.Value, "Coin")) return true;
+        }
+
+        // 5. Fair mode fallback: explore — walk toward the nearest reachable frontier
         if (FairMode)
         {
             var frontier = FindFrontierTile();
@@ -151,35 +172,63 @@ public class GoalAI : ITickable
     }
 
     /// <summary>
-    /// Fair-mode exploration: revealed floor tile adjacent to an unrevealed tile.
-    /// Walking there lets the fog expand into new territory.
+    /// Find the nearest coin that is currently revealed by fog (in Omni mode
+    /// all coins are "revealed") and within CoinPickupRange manhattan tiles.
+    /// </summary>
+    private (int, int)? FindNearbyRevealedCoin()
+    {
+        int bestDist = int.MaxValue;
+        (int, int)? best = null;
+        foreach (var coin in _roomManager.ActiveCoins)
+        {
+            if (coin == null || !coin.IsActive) continue;
+            if (FairMode && _fog != null && !_fog.IsRevealed(coin.TileX, coin.TileY)) continue;
+            int d = Mathf.Abs(coin.TileX - _player.X) + Mathf.Abs(coin.TileY - _player.Y);
+            if (d > CoinPickupRange) continue;
+            if (d < bestDist) { bestDist = d; best = (coin.TileX, coin.TileY); }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Fair-mode exploration: BFS through revealed walkable tiles from the
+    /// player, returning the FIRST revealed tile that borders unrevealed
+    /// terrain. Guaranteed reachable (unlike a Manhattan-nearest frontier
+    /// which may be blocked by walls).
     /// </summary>
     private (int, int)? FindFrontierTile()
     {
-        float minDist = float.MaxValue;
-        (int, int)? best = null;
+        var queue   = new Queue<(int, int)>();
+        var visited = new HashSet<(int, int)>();
+        queue.Enqueue((_player.X, _player.Y));
+        visited.Add((_player.X, _player.Y));
 
-        for (int x = 0; x < _grid.Width; x++)
-        for (int y = 0; y < _grid.Height; y++)
+        while (queue.Count > 0)
         {
-            if (!_fog.IsRevealed(x, y)) continue;
-            if (_grid.GetTileType(x, y) == TileType.Wall) continue;
+            var (cx, cy) = queue.Dequeue();
 
-            // Adjacent to at least one unrevealed tile?
-            bool isFrontier = false;
+            // Is this a frontier? (adjacent to at least one unrevealed tile)
             for (int d = 0; d < 4; d++)
             {
-                int nx = x + Dx[d], ny = y + Dy[d];
+                int nx = cx + Dx[d], ny = cy + Dy[d];
                 if (!_grid.InBounds(nx, ny)) continue;
-                if (!_fog.IsRevealed(nx, ny)) { isFrontier = true; break; }
+                if (!_fog.IsRevealed(nx, ny))
+                    return (cx, cy);
             }
-            if (!isFrontier) continue;
 
-            float dist = Mathf.Abs(x - _player.X) + Mathf.Abs(y - _player.Y);
-            if (dist < minDist) { minDist = dist; best = (x, y); }
+            // Expand to revealed walkable neighbours
+            for (int d = 0; d < 4; d++)
+            {
+                int nx = cx + Dx[d], ny = cy + Dy[d];
+                if (!_grid.InBounds(nx, ny)) continue;
+                if (_grid.GetTileType(nx, ny) == TileType.Wall) continue;
+                if (!_fog.IsRevealed(nx, ny)) continue;
+                if (!visited.Add((nx, ny))) continue;
+                queue.Enqueue((nx, ny));
+            }
         }
 
-        return best;
+        return null;
     }
 
     private bool TryPathTo((int x, int y) target, string label)
@@ -270,11 +319,33 @@ public class GoalAI : ITickable
     private static float Heuristic(int x, int y, int tx, int ty)
         => Mathf.Abs(x - tx) + Mathf.Abs(y - ty);
 
+    /// <summary>
+    /// HP-aware cost with coin attraction.
+    ///   fear       = 2 when HP = 0, 1 when HP = full — scales danger/path penalties
+    ///   coinBonus  = CoinAttraction × hpRatio — vanishes as HP drops
+    /// The two curves together mean AI will brave Path tiles for coins only
+    /// when it has HP to spare; when low on HP it skips them entirely.
+    /// </summary>
     private float TileCost(int x, int y)
     {
-        float cost = 1f + _dangerMap[x, y];
-        if (_grid.GetTileType(x, y) == TileType.Path) cost += 10f;
-        return cost;
+        float hpRatio = _player.Health / (float)_player.MaxHealth;
+        float fear    = 2f - hpRatio;   // low HP → higher Path/danger penalties
+
+        // Coin attraction:
+        //   HP < 30% → 0 (survival instinct, ignore coins entirely)
+        //   HP ≥ 30% → scales linearly from 0 (at 30%) up to full (at 100%)
+        float coinBonus = hpRatio < 0.3f
+            ? 0f
+            : CoinAttraction * (hpRatio - 0.3f) / 0.7f;
+
+        float cost = 1f + _dangerMap[x, y] * fear;
+        if (_grid.GetTileType(x, y) == TileType.Path)
+            cost += PathPenalty * fear;
+
+        if (_coinTiles != null && _coinTiles.Contains((x, y)))
+            cost -= coinBonus;
+
+        return Mathf.Max(cost, 0.1f);   // A* requires non-negative weights
     }
 
     private void BuildDangerMap()
@@ -295,6 +366,14 @@ public class GoalAI : ITickable
                 float penalty = (radius - dist + 1) * 12f;
                 if (penalty > _dangerMap[x, y]) _dangerMap[x, y] = penalty;
             }
+        }
+
+        // Rebuild coin lookup (entities can be collected/removed between plans)
+        _coinTiles = new HashSet<(int, int)>();
+        foreach (var coin in _roomManager.ActiveCoins)
+        {
+            if (coin != null && coin.IsActive)
+                _coinTiles.Add((coin.TileX, coin.TileY));
         }
     }
 

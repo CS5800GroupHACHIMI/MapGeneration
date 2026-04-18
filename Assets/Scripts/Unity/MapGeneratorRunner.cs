@@ -26,7 +26,10 @@ public class MapGeneratorRunner : MonoBehaviour
     private RoomManager      _roomManager;
     private GoalAI           _goalAI;
 
-    private int _level = 1;
+    private const int MaxLevel = 15;
+
+    private int  _level = 1;
+    private bool _gameEnded;
 
     [Inject]
     public void Construct(
@@ -65,6 +68,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _traversal.Stop();
         _goalAI?.Stop();
         _player.ResetHealth();  // full HP restore + clear key
+        _player.ResetScore();   // score wiped on death
         Run();
     }
 
@@ -95,10 +99,46 @@ public class MapGeneratorRunner : MonoBehaviour
 
     private void NextLevel()
     {
+        _player.AddScore(20);   // +20 points for clearing the level
+
+        if (_level >= MaxLevel)
+        {
+            // Beaten the final level — freeze the run until the player restarts
+            _gameEnded = true;
+            _traversal.Stop();
+            _goalAI?.Stop();
+            _player.ClearKey();
+            Time.timeScale = 0f;   // freeze the world (Update runs on unscaledTime for R-key)
+            return;
+        }
+
         _level++;
         _traversal.Stop();
-        _player.ClearKey();   // key consumed; health carries over
+        _goalAI?.Stop();        // stop auto-walk — old path points to previous map
+        _player.ClearKey();     // key consumed
+        _player.Heal(10);       // +10 HP reward for clearing the level
         Run();
+    }
+
+    private void RestartRun()
+    {
+        _gameEnded = false;
+        Time.timeScale = 1f;   // un-freeze
+        _level     = 1;
+        _traversal.Stop();
+        _goalAI?.Stop();
+        _player.ResetHealth();
+        _player.ResetScore();
+        Run();
+    }
+
+    private void Update()
+    {
+        if (_gameEnded && UnityEngine.InputSystem.Keyboard.current != null
+            && UnityEngine.InputSystem.Keyboard.current[UnityEngine.InputSystem.Key.R].wasPressedThisFrame)
+        {
+            RestartRun();
+        }
     }
 
     private void RunImmediate()
@@ -311,12 +351,12 @@ public class MapGeneratorRunner : MonoBehaviour
             ? $"Goal AI ({mode}) → {_goalAI.CurrentTarget}"
             : "Goal AI  Idle";
 
-        // Line 1: Level + Traversal status
+        // Line 1: Level + Score + Traversal status
         _labelStyle.fontSize = 26;
         _labelStyle.fontStyle = FontStyle.Bold;
         _labelStyle.normal.textColor = Color.white;
         GUI.Label(new Rect(rect.x, rect.y + 4, w, 34),
-            $"Level {_level}  |  {travStatus}", _labelStyle);
+            $"Lvl {_level}/{MaxLevel}  Score {_player.Score}  |  {travStatus}", _labelStyle);
 
         // Line 2: Goal AI status
         _labelStyle.fontSize = 20;
@@ -372,6 +412,37 @@ public class MapGeneratorRunner : MonoBehaviour
             GUI.Label(new Rect(10, Screen.height - 58, 200, 22), keyText, _labelStyle);
             _labelStyle.fontSize  = 18;
             _labelStyle.normal.textColor = Color.white;
+        }
+
+        // ── Game-Complete overlay ───────────────────────────────────────────
+        if (_gameEnded)
+        {
+            // Dim background
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height),
+                Texture2D.whiteTexture, ScaleMode.StretchToFill,
+                false, 0, new Color(0f, 0f, 0f, 0.75f), 0, 0);
+
+            _labelStyle.alignment = TextAnchor.MiddleCenter;
+            _labelStyle.fontStyle = FontStyle.Bold;
+
+            _labelStyle.fontSize = 60;
+            _labelStyle.normal.textColor = new Color(1f, 0.9f, 0.3f);
+            GUI.Label(new Rect(0, Screen.height / 2 - 100, Screen.width, 80),
+                "GAME COMPLETE", _labelStyle);
+
+            _labelStyle.fontSize = 36;
+            _labelStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(0, Screen.height / 2 - 10, Screen.width, 60),
+                $"Final Score: {_player.Score}", _labelStyle);
+
+            _labelStyle.fontSize = 20;
+            _labelStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
+            GUI.Label(new Rect(0, Screen.height / 2 + 70, Screen.width, 30),
+                "[R] Play again from Level 1", _labelStyle);
+
+            // Reset style for next frame
+            _labelStyle.alignment = TextAnchor.MiddleLeft;
+            _labelStyle.fontSize  = 18;
         }
     }
 
