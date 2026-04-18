@@ -423,7 +423,8 @@ public class MapTraversal : ITickable
             float minD = float.MaxValue;
             foreach (var m in _roomManager.LiveMonsters)
             {
-                if (!m.IsAlive) continue;
+                if (!m.IsActive) continue;
+                // if (!m.IsAlive) continue;
                 if (m.TileX / ChunkW != room.chunkX || m.TileY / ChunkH != room.chunkY) continue;
                 float d = Mathf.Max(Mathf.Abs(x - m.TileX), Mathf.Abs(y - m.TileY));
                 if (d < minD) minD = d;
@@ -503,7 +504,8 @@ public class MapTraversal : ITickable
         _dangerMap = new float[_grid.Width, _grid.Height];
         foreach (var m in _roomManager.LiveMonsters)
         {
-            if (!m.IsAlive) continue;
+            // if (!m.IsAlive) continue;
+            if (!m.IsActive) continue;
             int mx = m.TileX, my = m.TileY;
             for (int dy = -DangerRadius; dy <= DangerRadius; dy++)
             for (int dx = -DangerRadius; dx <= DangerRadius; dx++)
@@ -619,7 +621,7 @@ public class MapTraversal : ITickable
             // Tag: monster present in this chunk?
             bool hasMonster = false;
             foreach (var m in _roomManager.LiveMonsters)
-                if (m.IsAlive && m.TileX/ChunkW == cx && m.TileY/ChunkH == cy)
+                if (/*m.IsAlive*/ m.IsActive && m.TileX/ChunkW == cx && m.TileY/ChunkH == cy)
                     { hasMonster = true; break; }
 
             // Tag: is this the exit room?

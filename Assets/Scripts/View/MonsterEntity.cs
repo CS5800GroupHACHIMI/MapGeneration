@@ -1,6 +1,8 @@
+using System;
 using Model;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using VContainer;
 
 /// <summary>
 /// Stationary monster placed at a room center.
@@ -11,13 +13,14 @@ public class MonsterEntity : MonoBehaviour
     private Player  _player;
     private Tilemap _tilemap;
 
-    private SpriteRenderer _sr;
+    [Obsolete] private SpriteRenderer _sr;
     private int   _x, _y;
     private int   _chunkX, _chunkY;
-
+    
     public int  TileX   => _x;
     public int  TileY   => _y;
-    public bool IsAlive => _sr != null && _sr.enabled;
+    [Obsolete("Use IsActive Instead")] public bool IsAlive => _sr != null && _sr.enabled;
+    public bool IsActive { get; private set; }
     private float _damageAccumulator;
 
     private const float DamagePerSecond = 8f;
@@ -25,7 +28,8 @@ public class MonsterEntity : MonoBehaviour
     private const int   ChunkW          = 10;
     private const int   ChunkH          = 8;
 
-    public void Initialize(Player player, Tilemap tilemap)
+    [Inject]
+    public void Contruct(Player player, Tilemap tilemap)
     {
         _player  = player;
         _tilemap = tilemap;
@@ -37,12 +41,23 @@ public class MonsterEntity : MonoBehaviour
         _y      = y;
         _chunkX = chunkX;
         _chunkY = chunkY;
-        CreateSprite();
+        // CreateSprite();
+
+        IsActive = true;
+        var world = _tilemap.CellToWorld(new Vector3Int(_x, _y, 0)) + _tilemap.cellSize * 0.5f;
+        world.z = -0.4f;
+        transform.position = world;
     }
 
+    public void Remove()
+    {
+        IsActive = false;
+        Destroy(gameObject);
+    }
+    
     private void Update()
     {
-        if (_player == null || _player.IsDead || _sr == null || !_sr.enabled)
+        if (_player == null || _player.IsDead) // || _sr == null || !_sr.enabled)
         {
             _damageAccumulator = 0f;
             return;
@@ -75,7 +90,8 @@ public class MonsterEntity : MonoBehaviour
             _damageAccumulator = 0f;
         }
     }
-
+    
+    [Obsolete] 
     private void CreateSprite()
     {
         if (_sr != null) { _sr.enabled = true; return; }

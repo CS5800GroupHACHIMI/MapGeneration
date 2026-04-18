@@ -5,6 +5,7 @@
         Air,
         Wall,
         Floor,
-        Path
+        Path,
+        Poison
     }
 }

@@ -21,3 +21,7 @@ MonoBehaviour:
     data: {fileID: 11400000, guid: 702b2c8b9e6e8be41b41f6d088363024, type: 2}
   - type: 3
     data: {fileID: 11400000, guid: 8d6769723c2c5e4418233dfd21c2eddb, type: 2}
+  - type: 3
+    data: {fileID: 11400000, guid: 0a5bc20b755e01c4381e050aba0b33c1, type: 2}
+  - type: 4
+    data: {fileID: 11400000, guid: 8d6769723c2c5e4418233dfd21c2eddb, type: 2}

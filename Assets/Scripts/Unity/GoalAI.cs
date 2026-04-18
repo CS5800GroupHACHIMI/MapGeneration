@@ -355,7 +355,8 @@ public class GoalAI : ITickable
 
         foreach (var m in _roomManager.LiveMonsters)
         {
-            if (!m.IsAlive) continue;
+            // if (!m.IsAlive) continue;
+            if (!m.IsActive) continue;
             for (int dx = -radius; dx <= radius; dx++)
             for (int dy = -radius; dy <= radius; dy++)
             {

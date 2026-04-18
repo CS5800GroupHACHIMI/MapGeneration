@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Data;
 using Generators;
 using Model;
+using Unity;
 using Unity.Cinemachine;
 using UnityEngine;
 using VContainer;
@@ -22,10 +23,12 @@ public class MapGeneratorRunner : MonoBehaviour
     private Player           _player;
     private MapTraversal     _traversal;
     private FogOfWar         _fog;
-    private ExitDoor         _exitDoor;
+    // private ExitDoor         _exitDoor;
     private RoomManager      _roomManager;
     private GoalAI           _goalAI;
-
+    private ItemFactories    _itemFactory;
+    private ExitDoor         _exitDoor;
+    
     private const int MaxLevel = 15;
 
     private int  _level = 1;
@@ -41,9 +44,11 @@ public class MapGeneratorRunner : MonoBehaviour
         Player           player,
         MapTraversal     traversal,
         FogOfWar         fog,
-        ExitDoor         exitDoor,
-        RoomManager      roomManager,
-        GoalAI           goalAI)
+        GoalAI           goalAI,
+        // ExitDoor         exitDoor,
+        RoomManager     roomManager,
+        ItemFactories   itemFactories
+        )
     {
         _config      = config;
         _grid        = grid;
@@ -53,12 +58,29 @@ public class MapGeneratorRunner : MonoBehaviour
         _player      = player;
         _traversal   = traversal;
         _fog         = fog;
-        _exitDoor    = exitDoor;
+        // _exitDoor    = exitDoor;
         _roomManager = roomManager;
         _goalAI      = goalAI;
+        _itemFactory = itemFactories;
 
-        _exitDoor.OnPlayerReachedExit += NextLevel;
+        // _exitDoor.OnPlayerReachedExit += NextLevel;
         _player.OnDied += OnPlayerDied;
+    }
+
+    private void CreateExit(Vector2Int start)
+    {
+        DestoryExit();
+        _exitDoor = _itemFactory.CreateExit(start);
+        _exitDoor.OnPlayerReachedExit += NextLevel;
+    }
+
+    private void DestoryExit()
+    {
+        if (_exitDoor)
+        {
+            _exitDoor.OnPlayerReachedExit -= NextLevel;
+            Destroy(_exitDoor.gameObject);
+        }
     }
 
     private void OnPlayerDied()
@@ -79,6 +101,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _fog.Clear();
         _roomManager.Clear();
         _minimap.ClearIcons();
+        DestoryExit();
         _traversal.Reset();
 
         // Scale map size and target room count with level
@@ -89,7 +112,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _grid.SetSize(mapSize, mapSize);
 
         if (_config.randomSeed)
-            _config.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            _config.seed = Random.Range(int.MinValue, int.MaxValue);
 
         if (animateGeneration)
             RunAnimated();
@@ -165,7 +188,9 @@ public class MapGeneratorRunner : MonoBehaviour
             _player.TeleportTo(start.x, start.y);
 
             _fog.Initialize();
-            _exitDoor.PlaceAtFarthestRoom(start);
+
+            // _exitDoor.PlaceAtFarthestRoom(start);
+            CreateExit(start);
             if (_exitDoor.IsPlaced)
                 _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
             _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);
@@ -287,7 +312,9 @@ public class MapGeneratorRunner : MonoBehaviour
         var start = _generator.GetStartPosition(_grid);
         _player.TeleportTo(start.x, start.y);
         _fog.Initialize();
-        _exitDoor.PlaceAtFarthestRoom(start);
+        
+        CreateExit(start);
+        
         _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
         _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);
         _minimap.Rebuild();
