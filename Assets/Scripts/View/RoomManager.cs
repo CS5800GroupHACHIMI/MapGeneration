@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using Data;
 using Model;
+using Unity;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using VContainer;
+using Random = UnityEngine.Random;
 
 /// <summary>
 /// Assigns room roles after map generation and places entities.
@@ -12,10 +15,13 @@ using VContainer;
 /// </summary>
 public class RoomManager : MonoBehaviour
 {
+    public Transform ItemRoot => transform;
+    
     private MapGrid     _grid;
     private Player      _player;
     private Tilemap     _tilemap;
     private MinimapView _minimap;
+    private ItemFactories _itemFactory;
 
     private readonly List<Chest>         _chests   = new();
     private readonly List<KeyItem>       _keys     = new();
@@ -26,12 +32,19 @@ public class RoomManager : MonoBehaviour
     public IReadOnlyList<KeyItem>       ActiveKeys   => _keys;
 
     [Inject]
-    public void Construct(MapGrid grid, Player player, Tilemap tilemap, MinimapView minimap)
+    public void Construct(
+            MapGrid grid, 
+            Player player, 
+            Tilemap tilemap,
+            MinimapView minimap,
+            ItemFactories itemFactory
+        )
     {
         _grid    = grid;
         _player  = player;
         _tilemap = tilemap;
         _minimap = minimap;
+        _itemFactory = itemFactory;
     }
 
     public void PlaceEntities(Vector2Int startPos, int exitX, int exitY)
@@ -67,11 +80,12 @@ public class RoomManager : MonoBehaviour
         // Key room (exactly 1) — bright yellow icon
         {
             var room = rooms[available[idx++]];
-            var go   = new GameObject("KeyItem");
-            go.transform.SetParent(transform, false);
-            var key = go.AddComponent<KeyItem>();
-            key.Initialize(_player, _tilemap, _minimap);
-            key.Place(room.center.x, room.center.y);
+            // var go   = new GameObject("KeyItem");
+            // go.transform.SetParent(transform, false);
+            // var key = go.AddComponent<KeyItem>();
+            // key.Initialize(_player, _tilemap, _minimap);
+            // key.Place(room.center.x, room.center.y);
+            var key = _itemFactory.CreateKey(room.center.x, room.center.y);
             _keys.Add(key);
             _minimap?.RegisterIcon(room.center.x, room.center.y, new Color32(255, 255, 80, 255));
         }
@@ -87,11 +101,12 @@ public class RoomManager : MonoBehaviour
         for (int i = 0; i < chestCount && idx < total; i++)
         {
             var room = rooms[available[idx++]];
-            var go   = new GameObject("Chest");
-            go.transform.SetParent(transform, false);
-            var chest = go.AddComponent<Chest>();
-            chest.Initialize(_player, _tilemap, _minimap);
-            chest.Place(room.center.x, room.center.y);
+            // var go   = new GameObject("Chest");
+            // go.transform.SetParent(transform, false);
+            // var chest = go.AddComponent<Chest>();
+            // chest.Initialize(_player, _tilemap, _minimap);
+            // chest.Place(room.center.x, room.center.y);
+            var chest = _itemFactory.CreateChest(room.center.x, room.center.y);
             _chests.Add(chest);
             // Chest hidden by fog — no minimap icon
         }
@@ -99,11 +114,12 @@ public class RoomManager : MonoBehaviour
         for (int i = 0; i < monsterCount && idx < total; i++)
         {
             var room    = rooms[available[idx++]];
-            var go      = new GameObject("Monster");
-            go.transform.SetParent(transform, false);
-            var monster = go.AddComponent<MonsterEntity>();
-            monster.Initialize(_player, _tilemap);
-            monster.Place(room.center.x, room.center.y, room.chunkX, room.chunkY);
+            // var go      = new GameObject("Monster");
+            // go.transform.SetParent(transform, false);
+            // var monster = go.AddComponent<MonsterEntity>();
+            // monster.Initialize(_player, _tilemap);
+            // monster.Place(room.center.x, room.center.y, room.chunkX, room.chunkY);
+            var monster = _itemFactory.CreateEnemy(room.center.x, room.center.y, room.chunkX, room.chunkY);
             _monsters.Add(monster);
         }
         // remaining rooms (idx..total-1) are intentionally left empty
@@ -111,9 +127,9 @@ public class RoomManager : MonoBehaviour
 
     public void Clear()
     {
-        foreach (var c in _chests)   if (c != null) { c.Remove(); Destroy(c.gameObject); }
-        foreach (var k in _keys)     if (k != null) { k.Remove(); Destroy(k.gameObject); }
-        foreach (var m in _monsters) if (m != null) Destroy(m.gameObject);
+        foreach (var c in _chests)   if (c != null) { c.Remove(); }
+        foreach (var k in _keys)     if (k != null) { k.Remove(); }
+        foreach (var m in _monsters) if (m != null) { m.Remove(); }
         _chests.Clear();
         _keys.Clear();
         _monsters.Clear();

@@ -1,6 +1,8 @@
+using System;
 using Model;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using VContainer;
 
 /// <summary>
 /// Key pickup required to open the exit door.
@@ -12,7 +14,8 @@ public class KeyItem : MonoBehaviour
     private Tilemap     _tilemap;
     private MinimapView _minimap;
 
-    private SpriteRenderer _sr;
+    [Obsolete] private SpriteRenderer _sr;
+    
     private int  _x, _y;
     private bool _active;
 
@@ -20,7 +23,8 @@ public class KeyItem : MonoBehaviour
     public int  TileY    => _y;
     public bool IsActive => _active;
 
-    public void Initialize(Player player, Tilemap tilemap, MinimapView minimap)
+    [Inject]
+    public void Construct(Player player, Tilemap tilemap, MinimapView minimap)
     {
         _player  = player;
         _tilemap = tilemap;
@@ -31,7 +35,12 @@ public class KeyItem : MonoBehaviour
     {
         _x = x;
         _y = y;
-        CreateSprite();
+        // CreateSprite();
+        
+        var world = _tilemap.CellToWorld(new Vector3Int(_x, _y, 0)) + _tilemap.cellSize * 0.5f;
+        world.z = -0.4f;
+        transform.position = world;
+        
         _player.OnMoved      += OnPlayerMoved;
         _player.OnTeleported += OnPlayerMoved;
         _active = true;
@@ -45,7 +54,8 @@ public class KeyItem : MonoBehaviour
             _player.OnTeleported -= OnPlayerMoved;
         }
         _active = false;
-        if (_sr != null) _sr.enabled = false;
+        // if (_sr != null) _sr.enabled = false;
+        Destroy(gameObject);
     }
 
     private void OnPlayerMoved(int x, int y)
@@ -55,14 +65,17 @@ public class KeyItem : MonoBehaviour
 
         _player.PickupKey();
         _active     = false;
-        _sr.enabled = false;
+        // _sr.enabled = false;
         _player.OnMoved      -= OnPlayerMoved;
         _player.OnTeleported -= OnPlayerMoved;
 
         _minimap?.UnregisterIcon(_x, _y);
         _minimap?.RefreshTile(_x, _y);
+        
+        Remove();
     }
 
+    [Obsolete]
     private void CreateSprite()
     {
         if (_sr != null) { _sr.enabled = true; return; }

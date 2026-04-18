@@ -14,14 +14,14 @@ using VContainer;
 public class ExitDoor : MonoBehaviour
 {
     [Header("Visual")]
-    [SerializeField] private Color doorColor   = new Color(0.2f, 0.6f, 1f, 1f);
+    [SerializeField][Obsolete] private Color doorColor   = new Color(0.2f, 0.6f, 1f, 1f);
     [SerializeField] private int   sortOrder   = 5;
 
     private MapGrid  _grid;
     private Player   _player;
     private Tilemap  _tilemap;
 
-    private SpriteRenderer _spriteRenderer;
+    [Obsolete] private SpriteRenderer _spriteRenderer;
     private int _exitX, _exitY;
     private bool _active;
 
@@ -48,7 +48,7 @@ public class ExitDoor : MonoBehaviour
         if (rooms.Count < 2)
         {
             _active = false;
-            if (_spriteRenderer != null) _spriteRenderer.enabled = false;
+            // if (_spriteRenderer != null) _spriteRenderer.enabled = false;
             return;
         }
 
@@ -73,18 +73,24 @@ public class ExitDoor : MonoBehaviour
         if (farRoom == -1)
         {
             _active = false;
-            if (_spriteRenderer != null) _spriteRenderer.enabled = false;
+            // if (_spriteRenderer != null) _spriteRenderer.enabled = false;
             return;
         }
 
         _exitX = rooms[farRoom].center.x;
         _exitY = rooms[farRoom].center.y;
 
-        CreateOrUpdateVisual();
+        // CreateOrUpdateVisual();
+        
+        var worldPos = _tilemap.CellToWorld(new Vector3Int(_exitX, _exitY, 0)) + _tilemap.cellSize * 0.5f;
+        worldPos.z = -0.5f;
+        transform.position = worldPos;
+        
         _active = true;
 
-        _player.OnMoved      -= OnPlayerMoved;
-        _player.OnTeleported -= OnPlayerMoved;
+        // _player.OnMoved      -= OnPlayerMoved;
+        // _player.OnTeleported -= OnPlayerMoved;
+        
         _player.OnMoved      += OnPlayerMoved;
         _player.OnTeleported += OnPlayerMoved;
     }
@@ -99,6 +105,7 @@ public class ExitDoor : MonoBehaviour
         }
     }
 
+    [Obsolete]
     private void CreateOrUpdateVisual()
     {
         if (_spriteRenderer == null)

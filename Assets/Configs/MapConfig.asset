@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f2641212bfde46248757e3ea5a821316, type: 3}
   m_Name: MapConfig
   m_EditorClassIdentifier: Assembly-CSharp::MapConfig
-  width: 96
-  height: 96
-  seed: 0
+  width: 128
+  height: 64
+  seed: 251886795
   randomSeed: 1
   defaultMapTileData: 0

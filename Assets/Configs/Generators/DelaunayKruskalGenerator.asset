@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0be11d0bef9d26c448469a7df35357b1, type: 3}
   m_Name: DelaunayKruskalGenerator
   m_EditorClassIdentifier: Assembly-CSharp::Generators.DelaunayKruskalGenerator
-  RoomW: 8
-  RoomH: 10
+  RoomW: 6
+  RoomH: 8
   RoomGap: 2
-  PlaceAttempts: 300
-  LoopFraction: 0.15
+  PlaceAttempts: 10000
+  LoopFraction: 0.1
