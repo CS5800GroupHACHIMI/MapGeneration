@@ -1,6 +1,8 @@
+using System;
 using Model;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using VContainer;
 
 /// <summary>
 /// Collectible coin placed on a Path (purple, damaging) tile.
@@ -11,7 +13,7 @@ public class Coin : MonoBehaviour
     private Player  _player;
     private Tilemap _tilemap;
 
-    private SpriteRenderer _sr;
+    [Obsolete] private SpriteRenderer _sr;
     private int  _x, _y;
     private bool _active;
 
@@ -21,7 +23,8 @@ public class Coin : MonoBehaviour
 
     private const int ScoreAmount = 2;
 
-    public void Initialize(Player player, Tilemap tilemap)
+    [Inject]
+    public void Construct(Player player, Tilemap tilemap)
     {
         _player  = player;
         _tilemap = tilemap;
@@ -31,7 +34,12 @@ public class Coin : MonoBehaviour
     {
         _x = x;
         _y = y;
-        CreateSprite();
+        // CreateSprite();
+        
+        var world = _tilemap.CellToWorld(new Vector3Int(_x, _y, 0)) + _tilemap.cellSize * 0.5f;
+        world.z = -0.3f;
+        transform.position = world;
+        
         _player.OnMoved      += OnPlayerMoved;
         _player.OnTeleported += OnPlayerMoved;
         _active = true;
@@ -45,7 +53,8 @@ public class Coin : MonoBehaviour
             _player.OnTeleported -= OnPlayerMoved;
         }
         _active = false;
-        if (_sr != null) _sr.enabled = false;
+        // if (_sr != null) _sr.enabled = false;
+        Destroy(gameObject);
     }
 
     private void OnPlayerMoved(int x, int y)
@@ -55,11 +64,14 @@ public class Coin : MonoBehaviour
 
         _player.AddScore(ScoreAmount);
         _active     = false;
-        _sr.enabled = false;
+        // _sr.enabled = false;
         _player.OnMoved      -= OnPlayerMoved;
         _player.OnTeleported -= OnPlayerMoved;
+        
+        Destroy(gameObject);
     }
 
+    [Obsolete]
     private void CreateSprite()
     {
         if (_sr != null) { _sr.enabled = true; return; }

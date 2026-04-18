@@ -256,11 +256,12 @@ public class RoomManager : MonoBehaviour
                 var (cx, cy) = component[i];
                 if (excluded.Contains((cx, cy))) continue;
 
-                var go   = new GameObject("Coin");
-                go.transform.SetParent(transform, false);
-                var coin = go.AddComponent<Coin>();
-                coin.Initialize(_player, _tilemap);
-                coin.Place(cx, cy);
+                // var go   = new GameObject("Coin");
+                // go.transform.SetParent(transform, false);
+                // var coin = go.AddComponent<Coin>();
+                // coin.Initialize(_player, _tilemap);
+                // coin.Place(cx, cy);
+                var coin = _itemFactory.CreateCoin(cx, cy);
                 _coins.Add(coin);
             }
         }
@@ -278,7 +279,7 @@ public class RoomManager : MonoBehaviour
         foreach (var c in _chests)   if (c != null) { c.Remove(); }
         foreach (var k in _keys)     if (k != null) { k.Remove(); }
         foreach (var m in _monsters) if (m != null) { m.Remove(); }
-        foreach (var co in _coins)   if (co != null) { co.Remove(); Destroy(co.gameObject); }
+        foreach (var co in _coins)   if (co != null) { co.Remove(); }
         _chests.Clear();
         _keys.Clear();
         _monsters.Clear();

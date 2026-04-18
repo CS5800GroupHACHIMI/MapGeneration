@@ -9,6 +9,7 @@ namespace Unity
         private KeyItem _prefabKey;
         private ExitDoor _prefabExit;
         private MonsterEntity _prefabEnemy;
+        private Coin _prefabCoin;
         private Transform _itemRoot;
         
         private readonly IObjectResolver _resolver;
@@ -18,6 +19,7 @@ namespace Unity
             KeyItem prefabKey,
             ExitDoor prefabExit,
             MonsterEntity prefabEnemy,
+            Coin prefabCoin,
             [Key("ItemRoot")] Transform itemRoot,
             IObjectResolver resolver
             )
@@ -26,6 +28,7 @@ namespace Unity
             _prefabKey = prefabKey;
             _prefabExit = prefabExit;
             _prefabEnemy = prefabEnemy;
+            _prefabCoin = prefabCoin;
             _itemRoot = itemRoot;
             _resolver = resolver;
         }
@@ -44,6 +47,14 @@ namespace Unity
             _resolver.Inject(key);
             key.Place(x, y);
             return key;
+        }
+
+        public Coin CreateCoin(int x, int y)
+        {
+            var coin = Object.Instantiate(_prefabCoin, _itemRoot);
+            _resolver.Inject(coin);
+            coin.Place(x, y);
+            return coin;
         }
 
         public ExitDoor CreateExit(Vector2Int playerStart)

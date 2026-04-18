@@ -841,6 +841,7 @@ MonoBehaviour:
   chestView: {fileID: 2966404172292360169, guid: f42d397eda0246c468eabb8eaf936e4d, type: 3}
   keyItemView: {fileID: 8234534810754963112, guid: 45b3e198bac810f4e86450c7f4cfcfa0, type: 3}
   monsterEntityView: {fileID: 3954279106023455638, guid: 32b9375f8dfa12b43b614c3cbf094933, type: 3}
+  coinView: {fileID: 7490698579079239280, guid: 22207929bdbb85142bf2d14f982853f1, type: 3}
   minimapView: {fileID: 348788419}
   fogOfWar: {fileID: 262186851}
   exitDoor: {fileID: 7198821682418813623, guid: 0cbdf80131e548944887ed1e17e5c136, type: 3}
