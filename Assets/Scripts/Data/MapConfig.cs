@@ -11,6 +11,9 @@ public class MapConfig : ScriptableObject
     
     public int seed = 0;
     public bool randomSeed = true;
-    
+
     public TileType defaultMapTileData;
+
+    /// <summary>Optional override for generator target room count. 0 = use generator default.</summary>
+    [HideInInspector] public int targetRoomCount = 0;
 }

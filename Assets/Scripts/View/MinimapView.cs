@@ -226,8 +226,9 @@ public class MinimapView : MonoBehaviour
         int tx = Mathf.Min(px / PixelsPerTile, _grid.Width  - 1);
         int ty = Mathf.Min(py / PixelsPerTile, _grid.Height - 1);
 
-        // Icons are always visible regardless of fog
-        if (_icons.TryGetValue(new Vector2Int(tx, ty), out Color32 iconColor))
+        // Icons visible only on revealed tiles — hidden behind fog until explored
+        if (_icons.TryGetValue(new Vector2Int(tx, ty), out Color32 iconColor)
+            && (_fog == null || _fog.IsRevealed(tx, ty)))
             return iconColor;
 
         Color32 tile = _tileColors[_grid.GetTileType(tx, ty)];

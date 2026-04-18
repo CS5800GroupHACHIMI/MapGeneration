@@ -5,30 +5,22 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using VContainer.Unity;
 
-public enum TraversalAlgorithm { BFS, DFS }
-
 /// <summary>
-/// Two-phase auto-walk.  Press T to start/stop.  Press Y to toggle BFS/DFS.
+/// Two-phase fog-aware auto-walk. Press T to start/stop.
 ///
 /// Phase 1 – Explore
-///   Visit every room EXCEPT the exit room, in BFS or DFS order.
-///   Monster rooms are deprioritised (visited last within each BFS level / DFS branch).
-///   Key is picked up automatically when the player steps on it.
-///   As soon as the player has the key (mid-walk or after pause), Phase 2 begins.
+///   Walk to the nearest revealed tile adjacent to unrevealed terrain
+///   (frontier exploration). Opportunistic chest detour when HP is low.
+///   Key is picked up automatically when revealed and stepped on.
 ///
 /// Phase 2 – SeekExit
-///   Room-level Dijkstra finds the cheapest room path to the exit
-///   (monster rooms cost more), then tile-level A* traces through each
-///   intermediate room centre in order.  This avoids unnecessary detours
-///   through monster rooms.
-///
-/// Tile pathfinding is 4-directional only (no diagonals) so the player
-/// never clips through wall corners visually.
+///   Once the key is collected and the exit tile is revealed, uses
+///   room-level Dijkstra + tile A* to reach the exit, avoiding
+///   monster-inhabited rooms when possible.
 /// </summary>
 public class MapTraversal : ITickable
 {
     public bool IsAutoWalking { get; private set; }
-    public TraversalAlgorithm Algorithm { get; set; } = TraversalAlgorithm.BFS;
 
     private readonly MapGrid     _grid;
     private readonly Player      _player;
@@ -39,10 +31,11 @@ public class MapTraversal : ITickable
     // Walk state
     private Queue<(int x, int y)> _path;
     private float                 _moveTimer;
-    private const float MoveInterval = 0.18f;   // >= DOTween tween duration
+    private const float MoveInterval = 0.12f;   // match PlayerView.moveDuration for smooth chaining
 
-    // Goal state machine
-    private enum AutoGoal { Explore, SeekExit, Done }
+    // Goal state machine. None = never started (default), distinguishes fresh state
+    // from "paused mid-exploration" so auto-resume doesn't fire on untouched levels.
+    private enum AutoGoal { None, Explore, SeekExit, Done }
     private AutoGoal _goal;
 
     // Room graph (rebuilt on Begin)
@@ -91,18 +84,9 @@ public class MapTraversal : ITickable
 
     public void Tick()
     {
-        if (Keyboard.current != null)
+        if (Keyboard.current != null && Keyboard.current[Key.T].wasPressedThisFrame)
         {
-            if (Keyboard.current[Key.T].wasPressedThisFrame)
-            {
-                if (IsAutoWalking) Stop(); else Begin();
-            }
-            if (Keyboard.current[Key.Y].wasPressedThisFrame)
-            {
-                Algorithm = Algorithm == TraversalAlgorithm.BFS
-                    ? TraversalAlgorithm.DFS : TraversalAlgorithm.BFS;
-                Debug.Log($"[MapTraversal] Switched to {Algorithm}");
-            }
+            if (IsAutoWalking) Stop(); else Begin();
         }
 
         // Auto-resume: key was picked up while traversal was paused
@@ -157,7 +141,7 @@ public class MapTraversal : ITickable
         _goal = _player.HasKey ? AutoGoal.SeekExit : AutoGoal.Explore;
         IsAutoWalking = true;
 
-        Debug.Log($"[MapTraversal] Begin – {Algorithm}, {_rooms.Count} rooms, " +
+        Debug.Log($"[MapTraversal] Begin – {_rooms.Count} rooms, " +
                   $"exit room: {_exitRoomIdx}");
     }
 
@@ -166,6 +150,21 @@ public class MapTraversal : ITickable
         IsAutoWalking = false;
         _path?.Clear();
         Debug.Log("[MapTraversal] Stopped");
+    }
+
+    /// <summary>
+    /// Full state reset. Called on level transition so stale room data from the
+    /// previous map cannot trigger auto-resume on a fresh level.
+    /// </summary>
+    public void Reset()
+    {
+        IsAutoWalking = false;
+        _path?.Clear();
+        _goal        = AutoGoal.None;
+        _rooms       = null;
+        _adj         = null;
+        _dangerMap   = null;
+        _exitRoomIdx = -1;
     }
 
     // ─── State Machine ────────────────────────────────────────────────────────

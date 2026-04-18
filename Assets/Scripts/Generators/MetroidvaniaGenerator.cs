@@ -49,7 +49,9 @@ namespace Generators
 
             int startCol    = cols / 2;
             int startRow    = rows / 2;
-            int targetRooms = Mathf.Clamp(cols * rows / 2, 4, 30);
+            int targetRooms = config.targetRoomCount > 0
+                ? config.targetRoomCount
+                : Mathf.Clamp(cols * rows / 2, 4, 30);
 
             BuildRoomGraph(hasRoom, connH, connV, cols, rows, startCol, startRow, targetRooms);
 

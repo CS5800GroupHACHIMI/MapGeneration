@@ -186,18 +186,41 @@ public class ExitDoor : MonoBehaviour
                 if (x < minX) minX = x; if (x > maxX) maxX = x;
                 if (y < minY) minY = y; if (y > maxY) maxY = y;
             }
-            if (maxX - minX < 3 || maxY - minY < 3) continue;
+            // Filter out corridors / small fragments
+            // Real rooms: >= 4 tiles in each dimension AND >= 16 total tiles
+            // Corridors: typically 1-3 tiles wide OR < 15 tiles total
+            if (maxX - minX < 4 || maxY - minY < 4 || component.Count < 16) continue;
+
+            // Also require reasonable "fill ratio" — corridors snake around and
+            // don't fill their bounding box well, while rooms do
+            int bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
+            if ((float)component.Count / bboxArea < 0.45f) continue;
 
             int sumX = 0, sumY = 0;
             foreach (var (x, y) in component) { sumX += x; sumY += y; }
             int ccx = sumX / component.Count, ccy = sumY / component.Count;
+
+            // Find the "most interior" tile: must have ALL 4 cardinal neighbors be Floor
+            // (corridor tiles have walls on sides → can't satisfy this).
+            // Break ties by closest to centroid.
+            bool foundInterior = false;
+            Vector2Int best = new Vector2Int(component[0].Item1, component[0].Item2);
             float minD = float.MaxValue;
-            var best = new Vector2Int(component[0].Item1, component[0].Item2);
             foreach (var (x, y) in component)
             {
+                bool allFloor =
+                    _grid.InBounds(x + 1, y) && _grid.GetTileType(x + 1, y) == TileType.Floor &&
+                    _grid.InBounds(x - 1, y) && _grid.GetTileType(x - 1, y) == TileType.Floor &&
+                    _grid.InBounds(x, y + 1) && _grid.GetTileType(x, y + 1) == TileType.Floor &&
+                    _grid.InBounds(x, y - 1) && _grid.GetTileType(x, y - 1) == TileType.Floor;
+                if (!allFloor) continue;
+
                 float d = Mathf.Abs(x - ccx) + Mathf.Abs(y - ccy);
-                if (d < minD) { minD = d; best = new Vector2Int(x, y); }
+                if (d < minD) { minD = d; best = new Vector2Int(x, y); foundInterior = true; }
             }
+
+            // No interior tile found → this chunk is just a corridor, skip it
+            if (!foundInterior) continue;
 
             rooms.Add(new Room { chunkX = cx, chunkY = cy, center = best });
         }

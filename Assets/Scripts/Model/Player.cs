@@ -53,6 +53,12 @@ namespace Model
             HasKey = true;
         }
 
+        /// <summary>Consume the key (used when unlocking exit to proceed to next level).</summary>
+        public void ClearKey()
+        {
+            HasKey = false;
+        }
+
         public void ResetHealth()
         {
             Health = MaxHealth;

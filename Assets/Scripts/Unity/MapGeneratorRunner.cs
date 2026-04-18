@@ -24,6 +24,7 @@ public class MapGeneratorRunner : MonoBehaviour
     private FogOfWar         _fog;
     private ExitDoor         _exitDoor;
     private RoomManager      _roomManager;
+    private GoalAI           _goalAI;
 
     private int _level = 1;
 
@@ -38,7 +39,8 @@ public class MapGeneratorRunner : MonoBehaviour
         MapTraversal     traversal,
         FogOfWar         fog,
         ExitDoor         exitDoor,
-        RoomManager     roomManager)
+        RoomManager      roomManager,
+        GoalAI           goalAI)
     {
         _config      = config;
         _grid        = grid;
@@ -50,6 +52,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _fog         = fog;
         _exitDoor    = exitDoor;
         _roomManager = roomManager;
+        _goalAI      = goalAI;
 
         _exitDoor.OnPlayerReachedExit += NextLevel;
         _player.OnDied += OnPlayerDied;
@@ -57,12 +60,12 @@ public class MapGeneratorRunner : MonoBehaviour
 
     private void OnPlayerDied()
     {
-        // Restart current level (same seed)
-        _config.randomSeed = false;
+        // Restart from Level 1 with a fresh seed
+        _level = 1;
         _traversal.Stop();
-        _player.ResetHealth();
+        _goalAI?.Stop();
+        _player.ResetHealth();  // full HP restore + clear key
         Run();
-        _config.randomSeed = true;
     }
 
     private void Start() => Run();
@@ -72,6 +75,14 @@ public class MapGeneratorRunner : MonoBehaviour
         _fog.Clear();
         _roomManager.Clear();
         _minimap.ClearIcons();
+        _traversal.Reset();
+
+        // Scale map size and target room count with level
+        int mapSize = LevelScaling.MapSize(_level);
+        _config.width           = mapSize;
+        _config.height          = mapSize;
+        _config.targetRoomCount = LevelScaling.TargetRoomCount(_level);
+        _grid.SetSize(mapSize, mapSize);
 
         if (_config.randomSeed)
             _config.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
@@ -86,23 +97,46 @@ public class MapGeneratorRunner : MonoBehaviour
     {
         _level++;
         _traversal.Stop();
-        _player.ResetHealth();
+        _player.ClearKey();   // key consumed; health carries over
         Run();
     }
 
     private void RunImmediate()
     {
-        _grid.Reset(_config.defaultMapTileData);
-        _boardView.Initialize();
-        _generator.Generate(_grid, _config);
+        const int MaxAttempts = 10;
+        Vector2Int start = default;
 
-        var start = _generator.GetStartPosition(_grid);
-        _player.TeleportTo(start.x, start.y);
+        for (int attempt = 0; attempt < MaxAttempts; attempt++)
+        {
+            if (attempt > 0)
+            {
+                // Retry — produce a fresh seed and clear per-attempt state
+                _config.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+                _fog.Clear();
+                _roomManager.Clear();
+                _minimap.ClearIcons();
+            }
 
-        _fog.Initialize();
-        _exitDoor.PlaceAtFarthestRoom(start);
-        _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
-        _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY);
+            _grid.Reset(_config.defaultMapTileData);
+            _boardView.Initialize();
+            _generator.Generate(_grid, _config);
+
+            start = _generator.GetStartPosition(_grid);
+            _player.TeleportTo(start.x, start.y);
+
+            _fog.Initialize();
+            _exitDoor.PlaceAtFarthestRoom(start);
+            if (_exitDoor.IsPlaced)
+                _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
+            _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);
+
+            // Success: exit placed AND at least one key placed (key is far enough from exit)
+            if (_exitDoor.IsPlaced && _roomManager.ActiveKeys.Count > 0) break;
+
+            if (attempt == MaxAttempts - 1)
+                Debug.LogWarning("[MapGeneratorRunner] Could not generate a winnable map (exit + key)");
+        }
+
         _minimap.Rebuild();
     }
 
@@ -215,7 +249,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _fog.Initialize();
         _exitDoor.PlaceAtFarthestRoom(start);
         _minimap.RegisterIcon(_exitDoor.ExitX, _exitDoor.ExitY, new Color32(50, 200, 255, 255));
-        _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY);
+        _roomManager.PlaceEntities(start, _exitDoor.ExitX, _exitDoor.ExitY, _level);
         _minimap.Rebuild();
 
         // ── Smooth zoom back to player ──
@@ -257,31 +291,48 @@ public class MapGeneratorRunner : MonoBehaviour
             _boxStyle.normal.background = MakeTex(1, 1, new Color(0f, 0f, 0f, 0.6f));
 
             _labelStyle = new GUIStyle(GUI.skin.label);
-            _labelStyle.fontSize  = 18;
+            _labelStyle.fontSize  = 26;
             _labelStyle.fontStyle = FontStyle.Bold;
             _labelStyle.normal.textColor = Color.white;
             _labelStyle.alignment = TextAnchor.MiddleLeft;
-            _labelStyle.padding   = new RectOffset(10, 10, 5, 5);
+            _labelStyle.padding   = new RectOffset(16, 16, 8, 8);
         }
 
-        float w = 280, h = 60;
-        var rect = new Rect(Screen.width - w - 10, 10, w, h);
+        float w = 460, h = 128;
+        var rect = new Rect(Screen.width - w - 14, 14, w, h);
 
         GUI.Box(rect, GUIContent.none, _boxStyle);
 
-        string algo   = _traversal.Algorithm.ToString();
-        string status = _traversal.IsAutoWalking ? "  Running..." : "";
-        GUI.Label(new Rect(rect.x, rect.y + 2, w, 28),
-            $"Level {_level}  |  {algo}{status}", _labelStyle);
+        string travStatus   = _traversal.IsAutoWalking ? "Exploring..." : "Idle";
+        string mode = _goalAI != null && _goalAI.IsRunning
+            ? (_goalAI.FairMode ? "Fair" : "Omni")
+            : "";
+        string goalAIStatus = _goalAI != null && _goalAI.IsRunning
+            ? $"Goal AI ({mode}) → {_goalAI.CurrentTarget}"
+            : "Goal AI  Idle";
 
-        _labelStyle.fontSize  = 13;
+        // Line 1: Level + Traversal status
+        _labelStyle.fontSize = 26;
+        _labelStyle.fontStyle = FontStyle.Bold;
+        _labelStyle.normal.textColor = Color.white;
+        GUI.Label(new Rect(rect.x, rect.y + 4, w, 34),
+            $"Level {_level}  |  {travStatus}", _labelStyle);
+
+        // Line 2: Goal AI status
+        _labelStyle.fontSize = 20;
+        _labelStyle.normal.textColor = _goalAI != null && _goalAI.IsRunning
+            ? new Color(0.5f, 1f, 0.6f) : new Color(0.75f, 0.75f, 0.75f);
+        GUI.Label(new Rect(rect.x, rect.y + 42, w, 30), goalAIStatus, _labelStyle);
+
+        // Line 3: key hints
+        _labelStyle.fontSize  = 16;
         _labelStyle.fontStyle = FontStyle.Normal;
         _labelStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
-        GUI.Label(new Rect(rect.x, rect.y + 28, w, 24),
-            "[T] Start / Stop    [Y] Switch", _labelStyle);
+        GUI.Label(new Rect(rect.x, rect.y + 80, w, 28),
+            "[T] Explore    [G] Omni AI    [H] Fair AI", _labelStyle);
 
         // Reset style for next frame
-        _labelStyle.fontSize  = 18;
+        _labelStyle.fontSize  = 26;
         _labelStyle.fontStyle = FontStyle.Bold;
         _labelStyle.normal.textColor = Color.white;
 

@@ -52,11 +52,26 @@ public class FogOfWar : MonoBehaviour
 
     public int PixPerTile => pixelsPerTile;
 
-    /// <summary>Remove all fog instantly (call before regenerating map).</summary>
+    /// <summary>
+    /// Remove all fog instantly and detach event handlers.
+    /// Called before map regeneration — prevents stale handlers from touching
+    /// mask/revealed arrays that were sized for the previous map.
+    /// </summary>
     public void Clear()
     {
         if (_fogRenderer != null)
             _fogRenderer.enabled = false;
+
+        // Unsubscribe so TeleportTo/MoveTo during level reload doesn't hit stale arrays
+        if (_player != null)
+        {
+            _player.OnMoved      -= OnPlayerMoved;
+            _player.OnTeleported -= OnPlayerMoved;
+        }
+
+        _mask     = null;
+        _revealed = null;
+        _dirty    = false;
     }
 
     [Inject]
@@ -154,6 +169,8 @@ public class FogOfWar : MonoBehaviour
 
     private void UploadTexture()
     {
+        if (_mask == null || _fogTex == null) return;
+
         var pixels = new Color[_texW * _texH];
         for (int y = 0; y < _texH; y++)
         for (int x = 0; x < _texW; x++)

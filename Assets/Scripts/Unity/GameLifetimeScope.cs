@@ -51,6 +51,7 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(roomManager);
 
         builder.RegisterEntryPoint<MapTraversal>().AsSelf();
+        builder.RegisterEntryPoint<GoalAI>().AsSelf();
         builder.RegisterEntryPoint<PlayerController>();
     }
 }
