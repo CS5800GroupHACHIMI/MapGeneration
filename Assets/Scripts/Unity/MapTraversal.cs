@@ -50,16 +50,11 @@ public class MapTraversal : ITickable
     private Dictionary<int, List<int>>  _adj;
     private int                         _exitRoomIdx;   // -1 if not found
 
-    // Exploration sequence (Phase 1, excludes exit room)
-    private List<int> _roomSequence;
-    private int       _seqIndex;
-
     // Danger map: extra A* tile cost near live monsters
     private float[,] _dangerMap;
-    private const float DangerWeight     = 18f;
-    private const int   DangerRadius     = 3;
-    private const float MonsterRoomCost  = 12f; // extra Dijkstra cost for monster rooms
-    private const float UnrevealedCost   = 6f;  // A* cost penalty for fog-hidden tiles
+    private const float DangerWeight    = 18f;
+    private const int   DangerRadius    = 3;
+    private const float MonsterRoomCost = 12f;
 
     // Chest detour
     private const float ChestHpRatio  = 0.65f;
@@ -156,14 +151,6 @@ public class MapTraversal : ITickable
         _exitRoomIdx = FindExitRoomIndex(_rooms);
         BuildDangerMap();
 
-        int start = FindNearestRoomIndex(_rooms);
-
-        // Phase 1 sequence excludes the exit room; monster rooms are deprioritised
-        _roomSequence = Algorithm == TraversalAlgorithm.BFS
-            ? BFSSequence(start)
-            : DFSSequence(start);
-
-        _seqIndex  = 0;
         _path      = new Queue<(int, int)>();
         _moveTimer = 0f;
         // If key already collected (e.g. restarting after partial run), skip straight to exit
@@ -200,12 +187,12 @@ public class MapTraversal : ITickable
         };
     }
 
-    // ── Phase 1: BFS/DFS exploration, exit room excluded ─────────────────────
+    // ── Phase 1: Frontier exploration (fog-of-war aware) ─────────────────────
+    // Walks to the nearest revealed tile that borders unrevealed terrain.
+    // A* only uses revealed tiles, so the path is always through known terrain.
 
     private bool AdvanceExplore()
     {
-        if (_roomSequence == null) return false;
-
         // Opportunistic chest grab when HP is low
         var chest = FindChestDetour();
         if (chest.HasValue)
@@ -214,85 +201,59 @@ public class MapTraversal : ITickable
             if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
         }
 
-        // Reveal fog in current room
-        if (_seqIndex < _roomSequence.Count)
-        {
-            var room = _rooms[_roomSequence[_seqIndex]];
-
-            if (!IsRoomFullyRevealed(room))
-            {
-                var target = FindNearestUnrevealed(room);
-                if (target.HasValue)
-                {
-                    var s = FindPath(_player.X, _player.Y, target.Value.x, target.Value.y);
-                    if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
-                }
-            }
-
-            _seqIndex++;
-        }
-
-        // Navigate to next room via two-level routing (avoids monster rooms)
-        while (_seqIndex < _roomSequence.Count)
-        {
-            var next    = _rooms[_roomSequence[_seqIndex]];
-            var navPath = NavigateToRoom(_roomSequence[_seqIndex]);
-
-            if (navPath.Count > 0) { _path = navPath; return true; }
-
-            // Already in this room – try to clear remaining fog
-            if (!IsRoomFullyRevealed(next))
-            {
-                var unrev = FindNearestUnrevealed(next);
-                if (unrev.HasValue)
-                {
-                    var s = FindPath(_player.X, _player.Y, unrev.Value.x, unrev.Value.y);
-                    if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
-                }
-            }
-
-            _seqIndex++;
-        }
-
-        // All non-exit rooms explored but key not yet collected.
-        // Try revealed keys first; if none seen yet, walk toward the key room anyway.
+        // If key is visible, go collect it immediately (don't wait for full exploration)
         foreach (var key in _roomManager.ActiveKeys)
         {
             if (!key.IsActive) continue;
-            // Only navigate directly if already revealed; otherwise fall through to room nav
-            if (_fog != null && !_fog.IsRevealed(key.TileX, key.TileY))
-            {
-                // Key not revealed yet: navigate into its chunk to find it
-                int kcx = key.TileX / ChunkW, kcy = key.TileY / ChunkH;
-                int keyRoomIdx = -1;
-                for (int i = 0; i < _rooms.Count; i++)
-                    if (_rooms[i].chunkX == kcx && _rooms[i].chunkY == kcy) { keyRoomIdx = i; break; }
-                if (keyRoomIdx >= 0)
-                {
-                    var toKeyRoom = NavigateToRoom(keyRoomIdx);
-                    if (toKeyRoom.Count > 0) { _path = toKeyRoom; return true; }
-                    // In key room – explore it to reveal the key
-                    var unrev = FindNearestUnrevealed(_rooms[keyRoomIdx]);
-                    if (unrev.HasValue)
-                    {
-                        var s = FindPath(_player.X, _player.Y, unrev.Value.x, unrev.Value.y);
-                        if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
-                    }
-                }
-                continue;
-            }
+            if (_fog != null && !_fog.IsRevealed(key.TileX, key.TileY)) continue;
             var keyPath = FindPath(_player.X, _player.Y, key.TileX, key.TileY);
-            if (keyPath.Count > 1)
-            {
-                Debug.Log("[MapTraversal] All rooms explored – walking directly to key");
-                _path = ToQueue(keyPath, 1);
-                return true;
-            }
+            if (keyPath.Count > 1) { _path = ToQueue(keyPath, 1); return true; }
         }
-        // Key already collected or truly unreachable
-        Debug.Log("[MapTraversal] Phase 1 complete – waiting for key pickup");
+
+        // Find nearest frontier tile (revealed tile adjacent to unrevealed floor)
+        var frontier = FindNearestFrontier();
+        if (frontier.HasValue)
+        {
+            var s = FindPath(_player.X, _player.Y, frontier.Value.x, frontier.Value.y);
+            if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
+        }
+
+        Debug.Log("[MapTraversal] Phase 1 complete – no frontiers remain");
         IsAutoWalking = false;
         return false;
+    }
+
+    // BFS through revealed floor tiles from the player.
+    // Returns the nearest revealed tile that is adjacent to at least one unrevealed floor tile.
+    private (int x, int y)? FindNearestFrontier()
+    {
+        var queue   = new Queue<(int x, int y)>();
+        var visited = new HashSet<(int, int)>();
+        queue.Enqueue((_player.X, _player.Y));
+        visited.Add((_player.X, _player.Y));
+
+        while (queue.Count > 0)
+        {
+            var (cx, cy) = queue.Dequeue();
+
+            for (int d = 0; d < 4; d++)
+            {
+                int nx = cx + Dx[d], ny = cy + Dy[d];
+                if (!_grid.InBounds(nx, ny)) continue;
+                var t = _grid.GetTileType(nx, ny);
+                if (t == TileType.Wall || t == TileType.Air) continue;
+
+                if (_fog != null && !_fog.IsRevealed(nx, ny))
+                {
+                    // (cx, cy) is the frontier: last revealed tile before unknown
+                    return (cx, cy);
+                }
+
+                if (visited.Add((nx, ny)))
+                    queue.Enqueue((nx, ny));
+            }
+        }
+        return null; // no frontier — fully revealed
     }
 
     // ── Phase 2: Dijkstra room path → exit ───────────────────────────────────
@@ -309,26 +270,22 @@ public class MapTraversal : ITickable
         int ex = _exitDoor.ExitX, ey = _exitDoor.ExitY;
         if (_player.X == ex && _player.Y == ey) { _goal = AutoGoal.Done; return false; }
 
-        // If exit tile not yet revealed: navigate into the exit room to see it first
+        // Exit not yet seen: keep exploring until fog reveals it
         if (_fog != null && !_fog.IsRevealed(ex, ey))
         {
-            if (_exitRoomIdx >= 0)
+            var frontier = FindNearestFrontier();
+            if (frontier.HasValue)
             {
-                var toRoom = NavigateToRoom(_exitRoomIdx);
-                if (toRoom.Count > 0) { _path = toRoom; return true; }
-
-                // Already in exit room – find nearest unrevealed tile to clear the fog
-                var unrev = FindNearestUnrevealed(_rooms[_exitRoomIdx]);
-                if (unrev.HasValue)
-                {
-                    var s = FindPath(_player.X, _player.Y, unrev.Value.x, unrev.Value.y);
-                    if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
-                }
+                var s = FindPath(_player.X, _player.Y, frontier.Value.x, frontier.Value.y);
+                if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
             }
-            // Fallthrough: fog will clear as we walk toward the tile below
+            // No frontiers left but exit still hidden — map may be disconnected
+            Debug.LogWarning("[MapTraversal] Exit never revealed, map may be disconnected");
+            _goal = AutoGoal.Done;
+            return false;
         }
 
-        // Opportunistic chest grab
+        // Opportunistic chest grab (exit is known, quick detour if HP low)
         var chest = FindChestDetour();
         if (chest.HasValue)
         {
@@ -336,12 +293,11 @@ public class MapTraversal : ITickable
             if (s.Count > 1) { _path = ToQueue(s, 1); return true; }
         }
 
-        // Two-level path: room Dijkstra → tile A* through waypoints
-        var navPath = NavigateToRoom(_exitRoomIdx);
+        // Exit is revealed — navigate directly (fog-unconstrained, shortest path)
+        var navPath = NavigateToRoom(_exitRoomIdx, fogAware: false);
         if (navPath.Count > 0) { _path = navPath; return true; }
 
-        // Already in exit room – tile A* to the exact exit tile
-        var finalSeg = FindPath(_player.X, _player.Y, ex, ey);
+        var finalSeg = FindPath(_player.X, _player.Y, ex, ey, fogAware: false);
         if (finalSeg.Count > 1) { _path = ToQueue(finalSeg, 1); return true; }
 
         Debug.LogWarning("[MapTraversal] Exit tile unreachable");
@@ -354,7 +310,7 @@ public class MapTraversal : ITickable
     // Returns a tile-level queue that routes through the cheapest room path to
     // targetRoomIdx (skipping monster rooms when possible).
     // Returns empty queue if already in target room.
-    private Queue<(int, int)> NavigateToRoom(int targetRoomIdx)
+    private Queue<(int, int)> NavigateToRoom(int targetRoomIdx, bool fogAware = true)
     {
         int currentRoom = GetCurrentRoomIndex();
         if (currentRoom == targetRoomIdx) return new Queue<(int, int)>();
@@ -362,15 +318,25 @@ public class MapTraversal : ITickable
         // Room-level Dijkstra: find cheapest sequence of rooms to pass through
         var roomPath = RoomDijkstra(currentRoom, targetRoomIdx);
 
+        // If Dijkstra couldn't reach target (rooms separated by corridor-only chunks),
+        // fall back to direct tile A* to the target room's safe waypoint.
+        if (roomPath.Count <= 1)
+        {
+            var wpt    = GetRoomWaypoint(targetRoomIdx);
+            var direct = FindPath(_player.X, _player.Y, wpt.x, wpt.y, fogAware);
+            var dq = new Queue<(int, int)>();
+            for (int i = 1; i < direct.Count; i++) dq.Enqueue(direct[i]);
+            return dq;
+        }
+
         // Tile A* through intermediate room waypoints.
-        // For monster rooms, use a safe tile away from the monster instead of the center.
         var combined = new List<(int, int)>();
         int px = _player.X, py = _player.Y;
 
         for (int i = 1; i < roomPath.Count; i++)
         {
             var wpt = GetRoomWaypoint(roomPath[i]);
-            var seg = FindPath(px, py, wpt.x, wpt.y);
+            var seg = FindPath(px, py, wpt.x, wpt.y, fogAware);
             if (seg.Count > 1)
             {
                 for (int j = 1; j < seg.Count; j++) combined.Add(seg[j]);
@@ -479,22 +445,8 @@ public class MapTraversal : ITickable
         return FindNearestRoomIndex(_rooms);
     }
 
-    // ─── Room Fog Helpers ────────────────────────────────────────────────────
-
-    private bool IsRoomFullyRevealed(RoomInfo room)
-    {
-        int x0 = room.chunkX * ChunkW, y0 = room.chunkY * ChunkH;
-        for (int x = x0; x < x0 + ChunkW && x < _grid.Width; x++)
-        for (int y = y0; y < y0 + ChunkH && y < _grid.Height; y++)
-        {
-            var t = _grid.GetTileType(x, y);
-            if (t == TileType.Wall || t == TileType.Air) continue;
-            if (!_fog.IsRevealed(x, y)) return false;
-        }
-        return true;
-    }
-
     // BFS from player – closest reachable unrevealed floor tile inside the room chunk.
+    // Used by AdvanceSeekExit to reveal the exit tile.
     private (int x, int y)? FindNearestUnrevealed(RoomInfo room)
     {
         int x0 = room.chunkX * ChunkW, y0 = room.chunkY * ChunkH;
@@ -570,7 +522,7 @@ public class MapTraversal : ITickable
     private static float Heuristic(int x, int y, int tx, int ty) =>
         Mathf.Abs(x - tx) + Mathf.Abs(y - ty);
 
-    private List<(int x, int y)> FindPath(int fx, int fy, int tx, int ty)
+    private List<(int x, int y)> FindPath(int fx, int fy, int tx, int ty, bool fogAware = true)
     {
         if (fx == tx && fy == ty) return new List<(int, int)>();
 
@@ -602,9 +554,11 @@ public class MapTraversal : ITickable
                 if (_grid.GetTileType(nx, ny) == TileType.Wall) continue;
                 if (closed.Contains((nx, ny))) continue;
 
-                float danger   = _dangerMap != null ? _dangerMap[nx, ny] : 0f;
-                float fogCost  = (_fog != null && !_fog.IsRevealed(nx, ny)) ? UnrevealedCost : 0f;
-                float ng       = g + 1f + danger + fogCost;
+                // Fog constraint: only traverse revealed tiles (except the exact target)
+                if (fogAware && _fog != null && !_fog.IsRevealed(nx, ny) && (nx != tx || ny != ty)) continue;
+
+                float danger = _dangerMap != null ? _dangerMap[nx, ny] : 0f;
+                float ng     = g + 1f + danger;
                 if (!gCost.TryGetValue((nx, ny), out float og) || ng < og)
                 {
                     gCost[(nx, ny)]  = ng;
@@ -761,65 +715,4 @@ public class MapTraversal : ITickable
         return best;
     }
 
-    // ─── BFS / DFS Room Sequences (exit room excluded) ───────────────────────
-
-    // BFS: at each level, non-monster neighbours are enqueued before monster ones.
-    private List<int> BFSSequence(int start)
-    {
-        // Pre-mark exit room as visited so it is never added to Phase 1 sequence
-        var visited = new HashSet<int> { start };
-        if (_exitRoomIdx >= 0) visited.Add(_exitRoomIdx);
-
-        var queue = new Queue<int>();
-        var order = new List<int> { start };
-        queue.Enqueue(start);
-
-        while (queue.Count > 0)
-        {
-            int cur = queue.Dequeue();
-
-            // Sort neighbours: safe rooms before monster rooms (stable BFS-level ordering)
-            var neighbours = new List<int>(_adj[cur]);
-            neighbours.Sort((a, b) =>
-            {
-                int ca = _rooms[a].hasMonster ? 1 : 0;
-                int cb = _rooms[b].hasMonster ? 1 : 0;
-                return ca.CompareTo(cb);
-            });
-
-            foreach (int nb in neighbours)
-                if (visited.Add(nb)) { queue.Enqueue(nb); order.Add(nb); }
-        }
-        return order;
-    }
-
-    // DFS: recurse into non-monster neighbours first.
-    private List<int> DFSSequence(int start)
-    {
-        var visited = new HashSet<int>();
-        if (_exitRoomIdx >= 0) visited.Add(_exitRoomIdx); // exclude exit room
-        var seq = new List<int>();
-        DFSHelper(start, visited, seq);
-        return seq;
-    }
-
-    private void DFSHelper(int cur, HashSet<int> visited, List<int> seq)
-    {
-        visited.Add(cur); seq.Add(cur);
-
-        var neighbours = new List<int>(_adj[cur]);
-        neighbours.Sort((a, b) =>
-        {
-            int ca = _rooms[a].hasMonster ? 1 : 0;
-            int cb = _rooms[b].hasMonster ? 1 : 0;
-            return ca.CompareTo(cb);
-        });
-
-        foreach (int nb in neighbours)
-        {
-            if (visited.Contains(nb)) continue;
-            DFSHelper(nb, visited, seq);
-            seq.Add(cur); // backtrack step
-        }
-    }
 }
