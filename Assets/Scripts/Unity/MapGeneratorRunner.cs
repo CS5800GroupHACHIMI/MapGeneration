@@ -372,7 +372,9 @@ public class MapGeneratorRunner : MonoBehaviour
 
         string travStatus   = _traversal.IsAutoWalking ? "Exploring..." : "Idle";
         string mode = _goalAI != null && _goalAI.IsRunning
-            ? (_goalAI.FairMode ? "Fair" : "Omni")
+            ? (_goalAI.EfficientMode
+                ? (_goalAI.EfficientSeeking ? "Efficient→Exit" : "Efficient[Explore]")
+                : _goalAI.FairMode ? "Fair" : "Omni")
             : "";
         string goalAIStatus = _goalAI != null && _goalAI.IsRunning
             ? $"Goal AI ({mode}) → {_goalAI.CurrentTarget}"
@@ -396,7 +398,7 @@ public class MapGeneratorRunner : MonoBehaviour
         _labelStyle.fontStyle = FontStyle.Normal;
         _labelStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
         GUI.Label(new Rect(rect.x, rect.y + 80, w, 28),
-            "[T] Explore    [G] Omni AI    [H] Fair AI", _labelStyle);
+            "[T] Explore  [G] Omni  [H] Fair  [J] Efficient", _labelStyle);
 
         // Reset style for next frame
         _labelStyle.fontSize  = 26;
