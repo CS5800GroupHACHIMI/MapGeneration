@@ -588,9 +588,9 @@ MonoBehaviour:
   tileRegistry: {fileID: 11400000, guid: b755971c32c1dd346b666c064b6b3206, type: 2}
   neighborGroups:
   - label: Inner
-    types: 0200000003000000
+    types: 020000000300000004000000
   - label: OrGroup1
-    types: 
+    types:
   - label: OrGroup2
     types: 
   - label: OrGroup3
