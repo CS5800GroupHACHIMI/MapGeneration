@@ -1,6 +1,6 @@
 using System;
+using DG.Tweening;
 using Model;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using VContainer;
@@ -57,24 +57,26 @@ public class Chest : MonoBehaviour
             _player.OnTeleported -= OnPlayerMoved;
         }
         _active = false;
-        // if (_sr != null) _sr.enabled = false;
+        DOTween.Kill(transform);
         Destroy(gameObject);
     }
+
     private void OnPlayerMoved(int x, int y)
     {
         if (!_active) return;
         if (x != _x || y != _y) return;
 
         _player.Heal(HealAmount);
-        _active     = false;
-        // _sr.enabled = false;
+        _active = false;
         _player.OnMoved      -= OnPlayerMoved;
         _player.OnTeleported -= OnPlayerMoved;
 
         _minimap?.UnregisterIcon(_x, _y);
         _minimap?.RefreshTile(_x, _y);
-        
-        Destroy(gameObject);
+
+        transform.DOScale(1.4f, 0.1f)
+                 .OnComplete(() => transform.DOScale(0f, 0.15f)
+                 .OnComplete(() => Destroy(gameObject)));
     }
 
     [Obsolete]

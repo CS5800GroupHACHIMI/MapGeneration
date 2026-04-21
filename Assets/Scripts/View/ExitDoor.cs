@@ -83,7 +83,7 @@ public class ExitDoor : MonoBehaviour
         // CreateOrUpdateVisual();
         
         var worldPos = _tilemap.CellToWorld(new Vector3Int(_exitX, _exitY, 0)) + _tilemap.cellSize * 0.5f;
-        worldPos.z = -0.5f;
+        worldPos.z = -0.1f;
         transform.position   = worldPos;
         transform.localScale = Vector3.one * 3f;   // make the exit door visually prominent
 

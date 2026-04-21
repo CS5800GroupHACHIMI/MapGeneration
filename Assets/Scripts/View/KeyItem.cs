@@ -1,4 +1,5 @@
 using System;
+using DG.Tweening;
 using Model;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -54,7 +55,7 @@ public class KeyItem : MonoBehaviour
             _player.OnTeleported -= OnPlayerMoved;
         }
         _active = false;
-        // if (_sr != null) _sr.enabled = false;
+        DOTween.Kill(transform);
         Destroy(gameObject);
     }
 
@@ -64,15 +65,16 @@ public class KeyItem : MonoBehaviour
         if (x != _x || y != _y) return;
 
         _player.PickupKey();
-        _active     = false;
-        // _sr.enabled = false;
+        _active = false;
         _player.OnMoved      -= OnPlayerMoved;
         _player.OnTeleported -= OnPlayerMoved;
 
         _minimap?.UnregisterIcon(_x, _y);
         _minimap?.RefreshTile(_x, _y);
-        
-        Remove();
+
+        transform.DOScale(1.4f, 0.1f)
+                 .OnComplete(() => transform.DOScale(0f, 0.15f)
+                 .OnComplete(() => Destroy(gameObject)));
     }
 
     [Obsolete]
