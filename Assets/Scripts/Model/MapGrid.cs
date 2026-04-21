@@ -7,8 +7,10 @@ namespace Model
 {
     public class MapGrid
     {
-        public int Width  { get; }
-        public int Height { get; }
+        public int Width  { get; private set; }
+        public int Height { get; private set; }
+        public int MaxWidth  { get; }
+        public int MaxHeight { get; }
 
         private readonly TileBase[,]     _tiles;
         private readonly TileType[,] _types;
@@ -23,11 +25,24 @@ namespace Model
 
         public MapGrid(MapConfig config, TileRegistry registry)
         {
-            Width  = config.width;
-            Height = config.height;
-            _tiles    = new TileBase[Width, Height];
-            _types    = new TileType[Width, Height];
+            // Allocate at the max possible size to allow runtime resize.
+            MaxWidth  = System.Math.Max(config.width,  64);
+            MaxHeight = System.Math.Max(config.height, 64);
+            Width     = config.width;
+            Height    = config.height;
+            _tiles    = new TileBase[MaxWidth, MaxHeight];
+            _types    = new TileType[MaxWidth, MaxHeight];
             _registry = registry;
+        }
+
+        /// <summary>
+        /// Change the logical size of the grid. Must not exceed MaxWidth/MaxHeight.
+        /// Does NOT clear tiles — caller should follow up with Reset().
+        /// </summary>
+        public void SetSize(int w, int h)
+        {
+            Width  = System.Math.Min(w, MaxWidth);
+            Height = System.Math.Min(h, MaxHeight);
         }
 
         public TileBase Get(int x, int y) => _tiles[x, y];

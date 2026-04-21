@@ -11,10 +11,12 @@ namespace Model
         public int   Health    { get; private set; } = 100;
         public bool  IsDead    => Health <= 0;
         public bool  HasKey    { get; private set; }
+        public int   Score     { get; private set; }
 
         public event Action<int, int> OnMoved;
         public event Action<int, int> OnTeleported;
         public event Action<int>      OnHealthChanged;
+        public event Action<int>      OnScoreChanged;
         public event Action           OnDied;
 
         public Player() { }
@@ -53,11 +55,30 @@ namespace Model
             HasKey = true;
         }
 
+        /// <summary>Consume the key (used when unlocking exit to proceed to next level).</summary>
+        public void ClearKey()
+        {
+            HasKey = false;
+        }
+
         public void ResetHealth()
         {
             Health = MaxHealth;
             HasKey = false;
             OnHealthChanged?.Invoke(Health);
+        }
+
+        public void AddScore(int amount)
+        {
+            Score += amount;
+            OnScoreChanged?.Invoke(Score);
+        }
+
+        /// <summary>Reset score to 0 (on game-over restart from Level 1).</summary>
+        public void ResetScore()
+        {
+            Score = 0;
+            OnScoreChanged?.Invoke(Score);
         }
     }
 }

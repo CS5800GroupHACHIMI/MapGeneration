@@ -1,32 +1,58 @@
+using System;
 using Data;
 using Model;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VContainer.Unity;
 
-public class PlayerController : ITickable
+public class PlayerController : ITickable, IDisposable
 {
     private readonly Player        _player;
     private readonly MapGrid       _grid;
     private readonly PlayerInput   _input;
     private readonly PlayerView    _view;
     private readonly MapTraversal  _traversal;
+    private readonly GoalAI        _goalAI;
 
-    public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view, MapTraversal traversal)
+    private float _damageAccumulator;
+    private const float DamagePerSecond = 10f;
+
+    public PlayerController(Player player, MapGrid grid, PlayerInput input, PlayerView view,
+                            MapTraversal traversal, GoalAI goalAI)
     {
         _player    = player;
         _grid      = grid;
         _input     = input;
         _view      = view;
         _traversal = traversal;
+        _goalAI    = goalAI;
         _input.Player.Enable();
     }
 
     public void Tick()
     {
+        // ── Tile damage (Path = purple = 10 DPS) ─────────────────────────────
+        if (!_player.IsDead &&
+            _grid.InBounds(_player.X, _player.Y) &&
+            _grid.GetTileType(_player.X, _player.Y) == TileType.Path)
+        {
+            _damageAccumulator += DamagePerSecond * Time.deltaTime;
+            if (_damageAccumulator >= 1f)
+            {
+                int dmg = (int)_damageAccumulator;
+                _damageAccumulator -= dmg;
+                _player.TakeDamage(dmg);
+            }
+        }
+        else
+        {
+            _damageAccumulator = 0f;
+        }
+
         // ── Movement ─────────────────────────────────────────────────────────
         if (_player.IsDead) return;
         if (_traversal.IsAutoWalking) return;
+        if (_goalAI.IsRunning) return;
         if (_view.IsAnimating) return;
 
         var input = _input.Player.Move.ReadValue<Vector2>();
@@ -62,5 +88,13 @@ public class PlayerController : ITickable
         }
 
         _player.MoveTo(nx, ny);
+    }
+
+    public void Dispose()
+    {
+        // Disable action maps so PlayerInput's finalizer doesn't warn about leaks
+        _input?.Player.Disable();
+        _input?.UI.Disable();
+        _input?.Dispose();
     }
 }

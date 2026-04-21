@@ -23,6 +23,7 @@ public class GameLifetimeScope : LifetimeScope
     [SerializeField] private Chest              chestView;
     [SerializeField] private KeyItem            keyItemView;
     [SerializeField] private MonsterEntity      monsterEntityView;
+    [SerializeField] private Coin               coinView;
 
     [Header("Minimap")]
     [SerializeField] private MinimapView        minimapView;
@@ -44,8 +45,8 @@ public class GameLifetimeScope : LifetimeScope
         
         builder.RegisterInstance(chestView);
         builder.RegisterInstance(keyItemView);
-        builder.RegisterInstance(exitDoor);
         builder.RegisterInstance(monsterEntityView);
+        builder.RegisterInstance(coinView);
         
         builder.RegisterInstance(new PlayerInput());
 
@@ -61,9 +62,11 @@ public class GameLifetimeScope : LifetimeScope
         builder.RegisterComponent(playerView);
         builder.RegisterComponent(minimapView);
         builder.RegisterComponent(fogOfWar);
+        builder.RegisterComponent(exitDoor);
         builder.RegisterComponent(roomManager);
 
         builder.RegisterEntryPoint<MapTraversal>().AsSelf();
+        builder.RegisterEntryPoint<GoalAI>().AsSelf();
         builder.RegisterEntryPoint<PlayerController>();
     }
 }

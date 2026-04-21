@@ -6,7 +6,7 @@ using UnityEngine.Tilemaps;
 using VContainer;
 
 /// <summary>
-/// Treasure chest placed in a room center. Heals 30 HP on pickup.
+/// Treasure chest placed in a room center. Heals 5 HP on pickup.
 /// Removes its minimap icon when collected.
 /// </summary>
 public class Chest : MonoBehaviour
@@ -23,7 +23,7 @@ public class Chest : MonoBehaviour
     public int  TileY    => _y;
     public bool IsActive => _active;
 
-    private const int HealAmount = 30;
+    private const int HealAmount = 5;
 
     [Inject]
     public void Construct(Player player, Tilemap tilemap, MinimapView minimap)
